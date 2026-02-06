@@ -76,20 +76,20 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
-  /// Login with phone and PIN
-  Future<bool> login(String phone, String pin) async {
+  /// Login with username/phone and PIN
+  Future<bool> login(String identifier, String pin) async {
     state = state.copyWith(isLoading: true, error: null);
 
     try {
       final profile = await _staffRepository.authenticateStaff(
-        phone: phone,
+        identifier: identifier,
         pin: pin,
       );
 
       if (profile == null) {
         state = AuthState(
           isLoading: false,
-          error: 'Invalid phone number or PIN',
+          error: 'Invalid username/phone or PIN',
         );
         return false;
       }

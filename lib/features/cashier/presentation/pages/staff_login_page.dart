@@ -15,13 +15,13 @@ class StaffLoginPage extends ConsumerStatefulWidget {
 
 class _StaffLoginPageState extends ConsumerState<StaffLoginPage> {
   final _formKey = GlobalKey<FormState>();
-  final _phoneController = TextEditingController();
+  final _usernameController = TextEditingController();
   final _pinController = TextEditingController();
   bool _obscurePin = true;
 
   @override
   void dispose() {
-    _phoneController.dispose();
+    _usernameController.dispose();
     _pinController.dispose();
     super.dispose();
   }
@@ -29,10 +29,10 @@ class _StaffLoginPageState extends ConsumerState<StaffLoginPage> {
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final phone = _phoneController.text.trim();
+    final username = _usernameController.text.trim();
     final pin = _pinController.text.trim();
 
-    final success = await ref.read(authProvider.notifier).login(phone, pin);
+    final success = await ref.read(authProvider.notifier).login(username, pin);
 
     if (success && mounted) {
       final authState = ref.read(authProvider);
@@ -130,16 +130,13 @@ class _StaffLoginPageState extends ConsumerState<StaffLoginPage> {
                         ),
                         const SizedBox(height: 32),
 
-                        // Phone Input
+                        // Username Input
                         TextFormField(
-                          controller: _phoneController,
-                          keyboardType: TextInputType.phone,
-                          inputFormatters: [
-                            FilteringTextInputFormatter.digitsOnly,
-                          ],
+                          controller: _usernameController,
+                          keyboardType: TextInputType.text,
                           decoration: InputDecoration(
-                            labelText: 'Phone Number',
-                            prefixIcon: const Icon(Icons.phone),
+                            hintText: 'Username / Phone Number',
+                            prefixIcon: const Icon(Icons.person),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
@@ -148,10 +145,7 @@ class _StaffLoginPageState extends ConsumerState<StaffLoginPage> {
                           ),
                           validator: (value) {
                             if (value == null || value.isEmpty) {
-                              return 'Please enter your phone number';
-                            }
-                            if (value.length < 10) {
-                              return 'Phone number must be at least 10 digits';
+                              return 'Please enter your username or phone';
                             }
                             return null;
                           },
@@ -161,14 +155,10 @@ class _StaffLoginPageState extends ConsumerState<StaffLoginPage> {
                         // PIN Input
                         TextFormField(
                           controller: _pinController,
-                          keyboardType: TextInputType.number,
+                          keyboardType: TextInputType.text,
                           obscureText: _obscurePin,
-                          maxLength: 6,
-                          inputFormatters: [
-                            FilteringTextInputFormatter.digitsOnly,
-                          ],
                           decoration: InputDecoration(
-                            labelText: 'PIN',
+                            hintText: 'Password',
                             prefixIcon: const Icon(Icons.lock),
                             suffixIcon: IconButton(
                               icon: Icon(
@@ -185,14 +175,10 @@ class _StaffLoginPageState extends ConsumerState<StaffLoginPage> {
                             ),
                             filled: true,
                             fillColor: Colors.grey[50],
-                            counterText: '',
                           ),
                           validator: (value) {
                             if (value == null || value.isEmpty) {
-                              return 'Please enter your PIN';
-                            }
-                            if (value.length != 6) {
-                              return 'PIN must be 6 digits';
+                              return 'Please enter your password';
                             }
                             return null;
                           },

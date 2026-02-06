@@ -374,6 +374,7 @@ enum UserRole { ADMIN, CASHIER, KITCHEN }
 class StaffProfile {
   final String id;
   final String name;
+  final String username; // Username for login (bisa berupa apapun, tidak harus nomor HP)
   final UserRole role;
   final String? phone;
   final bool isActive;
@@ -381,6 +382,7 @@ class StaffProfile {
   StaffProfile({
     required this.id,
     required this.name,
+    required this.username,
     required this.role,
     this.phone,
     this.isActive = true,
@@ -390,6 +392,7 @@ class StaffProfile {
     return StaffProfile(
       id: json['id'] as String,
       name: json['name'] as String,
+      username: json['username'] as String? ?? json['phone'] as String? ?? '', // fallback untuk data lama
       role: UserRole.values.firstWhere(
         (e) => e.toString().split('.').last.toLowerCase() == (json['role'] as String).toLowerCase(),
         orElse: () => UserRole.CASHIER,
@@ -403,6 +406,7 @@ class StaffProfile {
     return {
       'id': id,
       'name': name,
+      'username': username,
       'role': role.toString().split('.').last.toLowerCase(),
       'phone': phone,
       'is_active': isActive,

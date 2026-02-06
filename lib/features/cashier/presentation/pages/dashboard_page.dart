@@ -16,6 +16,7 @@ import 'admin_menu_page.dart';
 import 'kitchen_display_page.dart';
 import 'shift_history_page.dart';
 import 'product_sales_report_page.dart';
+import 'user_management_page.dart';
 import 'monthly_analytics_page.dart';
 import '../widgets/product_category_section.dart';
 import '../../../storage/presentation/pages/storage_main_page.dart';
@@ -924,65 +925,32 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                     ],
                   ),
                 ),
-                const PopupMenuDivider(),
-                // Admin-only: Manage Menu
-                if (currentUser.role == UserRole.ADMIN)
+                // Cashier menu items (not shown for admin - already on dashboard)
+                if (currentUser.role != UserRole.ADMIN) ...[
+                  const PopupMenuDivider(),
+                  // Shift History
                   const PopupMenuItem(
-                    value: 'manage_menu',
+                    value: 'shift_history',
                     child: Row(
                       children: [
-                        Icon(Icons.restaurant_menu, size: 20),
+                        Icon(Icons.history, size: 20),
                         SizedBox(width: 8),
-                        Text('Manage Menu'),
+                        Text('Riwayat Shift'),
                       ],
                     ),
                   ),
-                // Shift History - available for all roles
-                const PopupMenuItem(
-                  value: 'shift_history',
-                  child: Row(
-                    children: [
-                      Icon(Icons.history, size: 20),
-                      SizedBox(width: 8),
-                      Text('Riwayat Shift'),
-                    ],
-                  ),
-                ),
-                // Product Sales Report - available for all roles
-                const PopupMenuItem(
-                  value: 'product_report',
-                  child: Row(
-                    children: [
-                      Icon(Icons.bar_chart, size: 20),
-                      SizedBox(width: 8),
-                      Text('Laporan Produk'),
-                    ],
-                  ),
-                ),
-                // Monthly Analytics - admin only
-                if (currentUser.role == UserRole.ADMIN)
+                  // Product Sales Report
                   const PopupMenuItem(
-                    value: 'monthly_analytics',
+                    value: 'product_report',
                     child: Row(
                       children: [
-                        Icon(Icons.analytics, size: 20),
+                        Icon(Icons.bar_chart, size: 20),
                         SizedBox(width: 8),
-                        Text('Monthly Analytics'),
+                        Text('Laporan Produk'),
                       ],
                     ),
                   ),
-                // Storage/Inventory - admin only
-                if (currentUser.role == UserRole.ADMIN)
-                  const PopupMenuItem(
-                    value: 'storage',
-                    child: Row(
-                      children: [
-                        Icon(Icons.inventory_2, size: 20),
-                        SizedBox(width: 8),
-                        Text('Storage & Inventory'),
-                      ],
-                    ),
-                  ),
+                ],
                 const PopupMenuDivider(),
                 const PopupMenuItem(
                   value: 'logout',
@@ -1060,51 +1028,52 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
               };
 
               return Container(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: Colors.grey[50],
                   border: Border(
-                    bottom: BorderSide(color: Colors.grey[300]!),
+                    bottom: BorderSide(color: Colors.grey[200]!),
                   ),
                 ),
                 child: Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
+                  spacing: 16,
+                  runSpacing: 16,
+                  alignment: WrapAlignment.center,
                   children: [
                     _SummaryBox(
                       icon: Icons.monetization_on,
                       title: 'Total Sales',
                       value: 'Rp ${(summary['total_sales'] as double).toStringAsFixed(0)}',
                       color: Colors.green,
-                      width: isMobile ? (screenWidth - 36) / 2 : (screenWidth - 100) / 5,
+                      width: isMobile ? (screenWidth - 72) / 2 : (screenWidth - 120) / 5,
                     ),
                     _SummaryBox(
                       icon: Icons.shopping_cart,
                       title: 'Orders',
                       value: '${summary['total_orders']}',
                       color: Colors.blue,
-                      width: isMobile ? (screenWidth - 36) / 2 : (screenWidth - 100) / 5,
+                      width: isMobile ? (screenWidth - 72) / 2 : (screenWidth - 120) / 5,
                     ),
                     _SummaryBox(
                       icon: Icons.phone_android,
                       title: 'App',
                       value: '${summary['app_orders']}',
                       color: Colors.orange,
-                      width: isMobile ? (screenWidth - 36) / 3 : (screenWidth - 100) / 5,
+                      width: isMobile ? (screenWidth - 88) / 3 : (screenWidth - 120) / 5,
                     ),
                     _SummaryBox(
                       icon: Icons.point_of_sale,
                       title: 'POS',
                       value: '${summary['pos_orders']}',
                       color: Colors.purple,
-                      width: isMobile ? (screenWidth - 36) / 3 : (screenWidth - 100) / 5,
+                      width: isMobile ? (screenWidth - 88) / 3 : (screenWidth - 120) / 5,
                     ),
                     _SummaryBox(
                       icon: Icons.delivery_dining,
                       title: 'Online',
                       value: '${summary['online_orders'] ?? 0}',
                       color: Colors.red.shade700,
-                      width: isMobile ? (screenWidth - 36) / 3 : (screenWidth - 100) / 5,
+                      width: isMobile ? (screenWidth - 88) / 3 : (screenWidth - 120) / 5,
                     ),
                   ],
                 ),
@@ -1266,6 +1235,21 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                       context,
                       MaterialPageRoute(
                         builder: (context) => const KitchenDisplayPage(),
+                      ),
+                    );
+                  },
+                  width: isMobile ? screenWidth - 48 : (screenWidth - 80) / 3,
+                ),
+                _buildAdminActionCard(
+                  icon: Icons.people,
+                  title: 'Kelola User',
+                  description: 'Manajemen username & password',
+                  color: Colors.indigo,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const UserManagementPage(),
                       ),
                     );
                   },
@@ -2330,15 +2314,15 @@ class _SummaryBox extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: width,
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.grey[200]!),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.02),
-            blurRadius: 4,
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8,
             offset: const Offset(0, 2),
           ),
         ],
@@ -2346,32 +2330,35 @@ class _SummaryBox extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(icon, color: color, size: 16),
-              const SizedBox(width: 4),
-              Expanded(
-                child: Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: Colors.grey[600],
-                    fontWeight: FontWeight.bold,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: color, size: 24),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 12),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey[600],
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.5,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 6),
           FittedBox(
             fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
             child: Text(
               value,
               style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
               ),
             ),
           ),

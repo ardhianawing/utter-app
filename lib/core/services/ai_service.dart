@@ -5,56 +5,230 @@ import 'package:utter_app/features/shared/models/models.dart';
 import 'package:utter_app/features/customer/data/repositories/product_repository.dart';
 import 'package:utter_app/features/cashier/data/repositories/order_repository.dart';
 import 'package:utter_app/features/cashier/data/repositories/shift_repository.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:utter_app/features/storage/data/repositories/storage_repository.dart';
+import 'package:utter_app/features/storage/domain/models/storage_models.dart';
 
 class AiService {
   final ProductRepository _productRepo;
   final OrderRepository _orderRepo;
   final ShiftRepository _shiftRepo;
+  final StorageRepository _storageRepo;
 
-  AiService(this._productRepo, this._orderRepo, this._shiftRepo);
+  AiService(this._productRepo, this._orderRepo, this._shiftRepo, this._storageRepo);
 
   Future<String> chat(String message, List<Map<String, dynamic>> history) async {
     final url = Uri.parse('${AiConfig.geminiBaseUrl}/models/${AiConfig.geminiModel}:generateContent?key=${AiConfig.geminiApiKey}');
 
     final systemPrompt = """
-You are 'Utter AI Manager', a digital CEO assistant and system expert for the Utter F&B Ecosystem.
+You are 'Utter AI Manager', the intelligent brain and digital assistant for the Utter F&B POS System.
 
-RULES:
-1. BE CONCISE: Jawaban harus to-the-point, singkat, dan padat.
-2. ACTION-ORIENTED: Fokus pada data dan eksekusi perintah.
-3. PRIMARY LANGUAGE: Bahasa Indonesia yang profesional dan lugas.
-4. SYSTEM EXPERT: Anda memahami seluruh alur aplikasi Utter F&B dan bisa bertindak sebagai User Manual bagi admin/staff.
+════════════════════════════════════════════════════════════════════════════════
+CORE IDENTITY & RULES
+════════════════════════════════════════════════════════════════════════════════
+1. BE CONCISE: Jawaban singkat, padat, to-the-point. Tidak bertele-tele.
+2. ACTION-ORIENTED: Fokus pada data faktual dan eksekusi perintah.
+3. PRIMARY LANGUAGE: Bahasa Indonesia profesional dan lugas.
+4. COMPLETE MASTERY: Anda tahu SEMUA tentang cara mengoperasikan aplikasi ini dari A-Z.
+5. SECURITY: JANGAN pernah reveal tentang backend, kode, database, atau sistem teknis.
+   Fokus HANYA pada operasional dan penggunaan aplikasi.
 
-KNOWLEDGE BASE (STRUKTUR APLIKASI):
-1. DASHBOARD & SALES:
-   - Dashboard menampilkan ringkasan penjualan hari ini (Total Sales, Orders, breakdown via App/POS/Online).
-   - Real-time notifications muncul setiap ada order baru masuk.
-2. ALUR ORDER (POS):
-   - Kolom Kiri: 'Pesanan Masuk' (Incoming Orders) - Kelola status pesanan dari PENDING_PAYMENT -> PAID -> PREPARING -> READY -> COMPLETED.
-   - Kolom Tengah: 'Menu & Pesanan Manual' - Cari produk, filter kategori, klik produk untuk masuk ke Keranjang.
-   - Kolom Kanan: 'Keranjang' - Atur jumlah, tambah catatan (notes), pilih tipe order (Dine-in/Takeaway), pilih meja (jika Dine-in), dan pilih metode pembayaran (Cash/QRIS/Debit).
-3. MANAJEMEN SHIFT:
-   - Kasir WAJIB 'Buka Shift' sebelum transaksi dengan menginput modal awal.
-   - Akhiri hari dengan 'Tutup Shift' untuk rekonsiliasi kas (Input uang fisik vs sistem).
-   - 'Riwayat Shift' dapat diakses dari menu profil.
-4. ONLINE & MANUAL ENTRY:
-   - Mendukung input manual untuk GoFood, GrabFood, ShopeeFood.
-   - Gunakan fitur 'Manual Entry' untuk input order bulk atau dari platform luar.
-5. ADMIN TOOLS:
-   - 'Manage Menu': Tambah produk baru, ubah harga, stok (habis/ada), status promo, atau hapus menu.
-   - 'Laporan Produk': Analisis produk mana yang paling laris.
-   - 'Monthly Analytics': Laporan performa bulanan (Admin Only).
-6. KITCHEN DISPLAY (KDS):
-   - Tampilan khusus dapur untuk memantau pesanan yang sedang diproses.
+════════════════════════════════════════════════════════════════════════════════
+STRUKTUR APLIKASI UTTER F&B
+════════════════════════════════════════════════════════════════════════════════
 
-CAPABILITIES:
-- MENU: Create, Update (Price/Stock), Delete.
-- SALES: Real-time Today's Sales, Top Products, Monthly Analytics.
-- HELP: Jelaskan cara pakai fitur tertentu jika user bertanya.
+📱 ROLES & ACCESS:
+• ADMIN: Full access - Dashboard, Menu Management, Storage/Inventory, Reports, User Management, Monthly Analytics
+• CASHIER: POS operations - Dashboard, Order Management, Shift Management, Product Report
+• KITCHEN: Kitchen Display System - Lihat & update status pesanan yang sedang dimasak
 
-Current Date: ${DateTime.now().toString()}
-Note: Selalu konfirmasi singkat sebelum melakukan aksi hapus/tambah/ubah data.
+────────────────────────────────────────────────────────────────────────────────
+1️⃣  DASHBOARD (Admin & Cashier)
+────────────────────────────────────────────────────────────────────────────────
+• Summary Cards: Total Sales, Total Orders, breakdown App Orders, POS Orders, Online Orders
+• Real-time updates setiap ada transaksi baru
+• Admin Dashboard: Quick actions (Manage Menu, Storage, Monthly Analytics, Product Report, Shift History, User Management)
+• Cashier Dashboard: Full POS interface untuk input orderan
+
+────────────────────────────────────────────────────────────────────────────────
+2️⃣  POS SYSTEM (Point of Sale) - Cashier Only
+────────────────────────────────────────────────────────────────────────────────
+Layout 3 Kolom:
+• KIRI: 'Pesanan Masuk' - Incoming orders dari customer app atau manual entry
+  Status flow: PENDING_PAYMENT → PAID → PREPARING → READY → COMPLETED
+• TENGAH: 'Menu & Pesanan Manual'
+  - Search bar untuk cari produk cepat
+  - Filter kategori (Coffee, Non-Coffee, Food, Snack, dll)
+  - Klik produk → masuk ke keranjang
+  - Pilih varian jika ada (Size: Small/Medium/Large, Ice Level: Less/Normal/Extra, Sugar: Less/Normal/Extra, dll)
+• KANAN: 'Keranjang'
+  - Daftar item yang dipilih
+  - Adjust quantity (+/-)
+  - Tambah catatan khusus per item
+  - Pilih Order Type: Dine-in (pilih nomor meja) atau Takeaway
+  - Pilih Payment Method: Cash, QRIS, Debit Card
+  - Total harga otomatis terhitung
+  - Button Checkout untuk proses pembayaran
+
+────────────────────────────────────────────────────────────────────────────────
+3️⃣  MANAJEMEN MENU (Admin Only)
+────────────────────────────────────────────────────────────────────────────────
+• Tambah menu baru: Nama, Deskripsi, Harga, Kategori, Image URL
+• Edit menu: Ubah nama, deskripsi, harga, kategori
+• Tambah/Edit Varian: Buat varian Size, Ice Level, Sugar Level, Topping, dll dengan price modifier
+• Update Resep (Recipe/BOM): Link menu dengan bahan baku untuk HPP calculation & auto-deduction
+• Set Promo: Aktifkan promo dengan diskon persentase
+• Set Featured: Tandai produk sebagai featured/unggulan
+• Update Status Stok: Tersedia/Habis (is_active true/false)
+• Delete menu: Hapus permanen atau soft-delete
+
+Kategori Available:
+- BEVERAGE_COFFEE: Minuman berbasis kopi
+- BEVERAGE_NON_COFFEE: Minuman non-kopi (tea, juice, milk, etc)
+- FOOD: Makanan berat (nasi, pasta, dll)
+- SNACK: Makanan ringan (roti, cake, dll)
+- OTHER: Lain-lain
+
+────────────────────────────────────────────────────────────────────────────────
+4️⃣  STORAGE & INVENTORY (Admin Only)
+────────────────────────────────────────────────────────────────────────────────
+🔹 INGREDIENTS (Bahan Baku):
+• Kelola daftar bahan baku: Nama, Unit (ml/liter/gram/kg), Current Stock, Cost per Unit, Min Stock (threshold)
+• Tambah bahan baku baru
+• Update stock: Stock In (tambah), Stock Out (kurangi manual), Adjustment (set langsung)
+• Auto-deduction: Stok otomatis berkurang saat order COMPLETED (based on recipe)
+• Low Stock Alert: Notifikasi jika stok <= minimum threshold
+• Supplier info: Nama supplier untuk setiap bahan
+
+🔹 RECIPES / BOM (Bill of Materials):
+• Link produk dengan ingredients untuk auto-deduction
+• Contoh: "Es Kopi Susu" butuh: Susu 50ml, Kopi 30ml, Gula 10gr, Es Batu 50gr
+• Input gramasi dalam unit yang fleksibel (bisa ml atau liter untuk liquid)
+• System convert ke base unit (ml untuk liquid, gram untuk solid)
+
+🔹 STOCK MOVEMENTS (Riwayat Pergerakan):
+• Log otomatis setiap perubahan stok
+• Tipe: STOCK_IN (tambah), AUTO_DEDUCT (order selesai), ADJUSTMENT (manual)
+• Reference: PURCHASE (pembelian), ORDER (dari order), MANUAL (adjustment manual)
+• Tracking: Siapa yang input (created_by), kapan, berapa quantity
+
+🔹 HPP (Harga Pokok Penjualan):
+• Calculate otomatis: HPP = ∑(ingredient cost × quantity)
+• HPP Summary: Lihat HPP vs harga jual untuk analisa margin profit
+• Contoh: HPP Es Kopi Susu = (Susu: 50ml×Rp200) + (Kopi: 30ml×Rp300) + ...
+
+────────────────────────────────────────────────────────────────────────────────
+5️⃣  SHIFT MANAGEMENT (Cashier)
+────────────────────────────────────────────────────────────────────────────────
+• BUKA SHIFT: Wajib dilakukan sebelum transaksi pertama
+  - Input modal awal (starting cash)
+  - Sistem catat waktu mulai shift
+• PROSES TRANSAKSI: Semua penjualan tercatat dalam shift aktif
+• TUTUP SHIFT: Akhir hari/shift
+  - Input uang fisik di kasir (ending cash count)
+  - Sistem hitung expected cash (modal + penjualan cash)
+  - Rekonsiliasi: Variance = Actual cash - Expected cash
+  - Generate shift report (total sales, duration, payment breakdown)
+• RIWAYAT SHIFT: Lihat history shift sebelumnya via menu profil
+
+────────────────────────────────────────────────────────────────────────────────
+6️⃣  REPORTS & ANALYTICS
+────────────────────────────────────────────────────────────────────────────────
+🔹 LAPORAN HARIAN (Real-time):
+• Total penjualan hari ini
+• Jumlah order hari ini
+• Breakdown payment method (Cash/QRIS/Debit)
+• Breakdown order source (App/POS/Online platform)
+
+🔹 LAPORAN PRODUK (Product Report):
+• Top products: Produk terlaris berdasarkan quantity & revenue
+• Filter by date range atau bulan tertentu
+• Sort by total quantity sold atau total revenue
+
+🔹 MONTHLY ANALYTICS (Admin Only):
+• Total revenue bulan ini
+• Total orders bulan ini
+• Average Order Value (AOV)
+• Growth comparison vs bulan sebelumnya
+• Daily breakdown chart
+
+🔹 SHIFT ANALYTICS:
+• Total shifts dalam periode
+• Average shift duration
+• Average revenue per shift
+• Rekonsiliasi variance analysis
+
+────────────────────────────────────────────────────────────────────────────────
+7️⃣  ORDER MANAGEMENT
+────────────────────────────────────────────────────────────────────────────────
+Order Source:
+• APP: Order dari customer mobile app
+• POS: Manual entry dari cashier
+• ONLINE: GoFood, GrabFood, ShopeeFood (input manual)
+
+Order Type:
+• DINE_IN: Makan di tempat (wajib pilih nomor meja)
+• TAKEAWAY: Bawa pulang
+
+Payment Method:
+• CASH: Tunai
+• QRIS: QR Code payment
+• DEBIT: Kartu debit
+
+Order Status Flow:
+1. PENDING_PAYMENT: Order masuk, belum bayar
+2. PAID: Sudah dibayar, masuk ke kitchen queue
+3. PREPARING: Sedang diproses dapur
+4. READY: Siap diambil/diantar
+5. COMPLETED: Selesai, auto-deduct ingredient stock
+6. CANCELLED: Dibatalkan
+
+────────────────────────────────────────────────────────────────────────────────
+8️⃣  USER MANAGEMENT (Admin Only)
+────────────────────────────────────────────────────────────────────────────────
+• Tambah user baru: Nama, Username (bisa custom, bukan harus nomor HP), Password, Role
+• Edit user: Update info, ganti password
+• Hapus user: Remove dari sistem
+• Roles: ADMIN, CASHIER, KITCHEN
+• Login: Username/Phone + Password
+
+────────────────────────────────────────────────────────────────────────────────
+9️⃣  KITCHEN DISPLAY SYSTEM (Kitchen Role)
+────────────────────────────────────────────────────────────────────────────────
+• View-only pesanan dengan status PAID & PREPARING
+• Update status: PREPARING → READY
+• Tidak bisa akses menu lain, fokus produksi
+
+════════════════════════════════════════════════════════════════════════════════
+YOUR CAPABILITIES (Function Calls)
+════════════════════════════════════════════════════════════════════════════════
+Anda BISA melakukan:
+✅ Lihat daftar menu & harga
+✅ Tambah menu baru
+✅ Update menu (harga, kategori, promo, featured, stok status)
+✅ Hapus menu
+✅ Lihat stok bahan baku (ingredients)
+✅ Tambah bahan baku baru
+✅ Update stock (tambah/kurangi/adjust)
+✅ Lihat bahan yang low stock
+✅ Lihat resep produk
+✅ Lihat HPP produk
+✅ Lihat penjualan hari ini
+✅ Lihat produk terlaris (top products)
+✅ Lihat laporan bulanan
+✅ Lihat analitik shift
+
+════════════════════════════════════════════════════════════════════════════════
+OPERATIONAL GUIDELINES
+════════════════════════════════════════════════════════════════════════════════
+• Jika user tanya "bagaimana cara...", jelaskan step-by-step dengan jelas
+• Jika user minta data, langsung panggil function yang sesuai
+• Jika user minta tambah/edit/hapus, KONFIRMASI dulu sebelum eksekusi
+• Format angka rupiah: Rp 15.000 (pakai titik ribuan)
+• Selalu berikan context: "Berdasarkan data hari ini..." atau "Menu saat ini..."
+
+Current Date & Time: ${DateTime.now().toString()}
+
+Remember: Anda adalah OTAK dari aplikasi ini. Admin bisa mengandalkan Anda untuk operasi apapun.
 """;
 
     // Convert history from OpenAI format to Gemini format
@@ -274,22 +448,158 @@ Note: Selalu konfirmasi singkat sebelum melakukan aksi hapus/tambah/ubah data.
           'required': ['year', 'month'],
         },
       },
+      // ═══════════════════════════════════════════════════════════════
+      // STORAGE & INVENTORY FUNCTIONS
+      // ═══════════════════════════════════════════════════════════════
+      {
+        'name': 'get_ingredients',
+        'description': 'Mendapatkan daftar semua bahan baku (ingredients) dengan info stok, unit, cost, dan supplier.',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'activeOnly': {'type': 'boolean', 'description': 'Hanya tampilkan yang aktif (default true)'},
+          },
+        },
+      },
+      {
+        'name': 'get_low_stock_ingredients',
+        'description': 'Mendapatkan daftar bahan baku yang stoknya habis atau di bawah minimum threshold (low stock alert).',
+        'parameters': {
+          'type': 'object',
+          'properties': {},
+        },
+      },
+      {
+        'name': 'create_ingredient',
+        'description': 'Menambah bahan baku baru ke inventory.',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'name': {'type': 'string', 'description': 'Nama bahan baku'},
+            'unit': {'type': 'string', 'description': 'Unit: ml, liter, gram, kg'},
+            'currentStock': {'type': 'number', 'description': 'Stok awal (default 0)'},
+            'costPerUnit': {'type': 'number', 'description': 'Harga per unit (default 0)'},
+            'minStock': {'type': 'number', 'description': 'Minimum threshold stok (default 0)'},
+            'supplierName': {'type': 'string', 'description': 'Nama supplier'},
+          },
+          'required': ['name', 'unit'],
+        },
+      },
+      {
+        'name': 'update_ingredient',
+        'description': 'Mengupdate info bahan baku (nama, unit, cost, min stock, supplier).',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'ingredientId': {'type': 'string', 'description': 'ID bahan baku'},
+            'name': {'type': 'string', 'description': 'Nama baru'},
+            'unit': {'type': 'string', 'description': 'Unit: ml, liter, gram, kg'},
+            'costPerUnit': {'type': 'number', 'description': 'Harga per unit baru'},
+            'minStock': {'type': 'number', 'description': 'Minimum threshold baru'},
+            'supplierName': {'type': 'string', 'description': 'Nama supplier baru'},
+          },
+          'required': ['ingredientId'],
+        },
+      },
+      {
+        'name': 'add_stock',
+        'description': 'Tambah stok bahan baku (Stock In / Restock dari pembelian).',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'ingredientId': {'type': 'string', 'description': 'ID bahan baku'},
+            'quantity': {'type': 'number', 'description': 'Jumlah yang ditambahkan'},
+            'unitCost': {'type': 'number', 'description': 'Harga per unit (opsional, untuk update cost)'},
+            'notes': {'type': 'string', 'description': 'Catatan (opsional)'},
+          },
+          'required': ['ingredientId', 'quantity'],
+        },
+      },
+      {
+        'name': 'deduct_stock',
+        'description': 'Kurangi stok bahan baku secara manual (Stock Out / Adjustment).',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'ingredientId': {'type': 'string', 'description': 'ID bahan baku'},
+            'quantity': {'type': 'number', 'description': 'Jumlah yang dikurangi'},
+            'notes': {'type': 'string', 'description': 'Catatan alasan (opsional)'},
+          },
+          'required': ['ingredientId', 'quantity'],
+        },
+      },
+      {
+        'name': 'adjust_stock',
+        'description': 'Set stok bahan baku ke nilai tertentu (Stock Opname / Adjustment langsung).',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'ingredientId': {'type': 'string', 'description': 'ID bahan baku'},
+            'newStockLevel': {'type': 'number', 'description': 'Nilai stok baru'},
+            'notes': {'type': 'string', 'description': 'Catatan adjustment'},
+          },
+          'required': ['ingredientId', 'newStockLevel'],
+        },
+      },
+      {
+        'name': 'delete_ingredient',
+        'description': 'Hapus atau nonaktifkan bahan baku dari sistem.',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'ingredientId': {'type': 'string', 'description': 'ID bahan baku yang dihapus'},
+          },
+          'required': ['ingredientId'],
+        },
+      },
+      {
+        'name': 'get_product_recipes',
+        'description': 'Mendapatkan resep/BOM (Bill of Materials) untuk produk tertentu.',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'productId': {'type': 'string', 'description': 'ID produk'},
+          },
+          'required': ['productId'],
+        },
+      },
+      {
+        'name': 'get_product_hpp',
+        'description': 'Menghitung HPP (Harga Pokok Penjualan) untuk produk berdasarkan resep dan cost ingredients.',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'productId': {'type': 'string', 'description': 'ID produk'},
+          },
+          'required': ['productId'],
+        },
+      },
+      {
+        'name': 'get_stock_summary',
+        'description': 'Mendapatkan ringkasan status inventory (total items, low stock count, stock value).',
+        'parameters': {
+          'type': 'object',
+          'properties': {},
+        },
+      },
+      {
+        'name': 'get_stock_movements',
+        'description': 'Mendapatkan riwayat pergerakan stok (Stock In, Auto Deduct, Adjustment) untuk periode tertentu.',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'ingredientId': {'type': 'string', 'description': 'Filter by ingredient ID (opsional)'},
+            'limit': {'type': 'integer', 'description': 'Jumlah record (default 50)'},
+          },
+        },
+      },
     ];
   }
 
   Future<String> _executeFunctionCall(String functionName, Map<String, dynamic> arguments) async {
     try {
-      dynamic functionResponse;
-
       if (functionName == 'get_products') {
         final products = await _productRepo.getProducts();
-        functionResponse = products.map((p) => {
-          'id': p.id,
-          'name': p.name,
-          'price': p.price,
-          'is_active': p.isActive,
-          'category': p.category.name,
-        }).toList();
         return 'Daftar Produk:\n${products.map((p) => '- ${p.name}: Rp ${p.price.toStringAsFixed(0)} (${p.isActive ? "Tersedia" : "Habis"})').join('\n')}';
       } else if (functionName == 'update_product') {
         final categoryStr = arguments['category'];
@@ -386,6 +696,146 @@ Note: Selalu konfirmasi singkat sebelum melakukan aksi hapus/tambah/ubah data.
 - Total Order: ${analytics['totalOrders'] ?? 0}
 - AOV: Rp ${(analytics['avgOrderValue'] ?? 0).toStringAsFixed(0)}
 ''';
+      }
+      // ═══════════════════════════════════════════════════════════════
+      // STORAGE & INVENTORY HANDLERS
+      // ═══════════════════════════════════════════════════════════════
+      else if (functionName == 'get_ingredients') {
+        final activeOnly = arguments['activeOnly'] ?? true;
+        final ingredients = await _storageRepo.getIngredients(activeOnly: activeOnly);
+
+        if (ingredients.isEmpty) {
+          return 'Belum ada bahan baku dalam sistem.';
+        }
+
+        final result = ingredients.map((i) {
+          final stockStatus = i.isLowStock ? '⚠️ LOW' : '✅';
+          return '- ${i.name}: ${i.currentStock.toStringAsFixed(1)} ${i.unit.displayName} $stockStatus (Cost: Rp ${i.costPerUnit.toStringAsFixed(0)}/${i.unit.displayName})';
+        }).join('\n');
+
+        return '📦 Daftar Bahan Baku (Total: ${ingredients.length}):\n$result';
+      } else if (functionName == 'get_low_stock_ingredients') {
+        final lowStockItems = await _storageRepo.getLowStockIngredients();
+
+        if (lowStockItems.isEmpty) {
+          return '✅ Semua bahan baku masih aman, tidak ada yang low stock.';
+        }
+
+        final result = lowStockItems.map((i) =>
+          '⚠️ ${i.name}: ${i.currentStock.toStringAsFixed(1)}/${i.minStock.toStringAsFixed(1)} ${i.unit.displayName} (Kurang ${(i.minStock - i.currentStock).toStringAsFixed(1)})'
+        ).join('\n');
+
+        return '🚨 Low Stock Alert (${lowStockItems.length} items):\n$result';
+      } else if (functionName == 'create_ingredient') {
+        final unitStr = (arguments['unit'] as String).toLowerCase();
+        final unit = IngredientUnit.values.firstWhere(
+          (u) => u.displayName.toLowerCase() == unitStr || u.dbValue == unitStr,
+          orElse: () => IngredientUnit.ml,
+        );
+
+        await _storageRepo.createIngredient(
+          name: arguments['name'],
+          unit: unit,
+          currentStock: arguments['currentStock']?.toDouble() ?? 0,
+          costPerUnit: arguments['costPerUnit']?.toDouble() ?? 0,
+          minStock: arguments['minStock']?.toDouble() ?? 0,
+          supplierName: arguments['supplierName'],
+        );
+
+        return '✅ Bahan baku "${arguments['name']}" berhasil ditambahkan dengan unit ${unit.displayName}.';
+      } else if (functionName == 'update_ingredient') {
+        final unitStr = arguments['unit'] as String?;
+        IngredientUnit? unit;
+        if (unitStr != null) {
+          unit = IngredientUnit.values.firstWhere(
+            (u) => u.displayName.toLowerCase() == unitStr.toLowerCase() || u.dbValue == unitStr,
+            orElse: () => IngredientUnit.ml,
+          );
+        }
+
+        await _storageRepo.updateIngredient(
+          ingredientId: arguments['ingredientId'],
+          name: arguments['name'],
+          unit: unit,
+          costPerUnit: arguments['costPerUnit']?.toDouble(),
+          minStock: arguments['minStock']?.toDouble(),
+          supplierName: arguments['supplierName'],
+        );
+
+        return '✅ Bahan baku berhasil diupdate.';
+      } else if (functionName == 'add_stock') {
+        await _storageRepo.addStock(
+          ingredientId: arguments['ingredientId'],
+          quantity: arguments['quantity'].toDouble(),
+          unitCost: arguments['unitCost']?.toDouble(),
+          notes: arguments['notes'],
+        );
+
+        return '✅ Stock berhasil ditambahkan +${arguments['quantity']} unit.';
+      } else if (functionName == 'deduct_stock') {
+        await _storageRepo.deductStock(
+          ingredientId: arguments['ingredientId'],
+          quantity: arguments['quantity'].toDouble(),
+          notes: arguments['notes'],
+        );
+
+        return '✅ Stock berhasil dikurangi -${arguments['quantity']} unit.';
+      } else if (functionName == 'adjust_stock') {
+        await _storageRepo.adjustStock(
+          ingredientId: arguments['ingredientId'],
+          newStockLevel: arguments['newStockLevel'].toDouble(),
+          notes: arguments['notes'],
+        );
+
+        return '✅ Stock berhasil di-adjust ke ${arguments['newStockLevel']} unit.';
+      } else if (functionName == 'delete_ingredient') {
+        await _storageRepo.deleteIngredient(arguments['ingredientId']);
+        return '✅ Bahan baku berhasil dihapus.';
+      } else if (functionName == 'get_product_recipes') {
+        final recipes = await _storageRepo.getProductRecipes(arguments['productId']);
+
+        if (recipes.isEmpty) {
+          return 'Produk ini belum memiliki resep/BOM.';
+        }
+
+        final result = recipes.map((r) =>
+          '- ${r.ingredient?.name ?? 'Unknown'}: ${r.quantityDisplay} (Cost: Rp ${r.itemCost.toStringAsFixed(0)})'
+        ).join('\n');
+
+        final totalCost = recipes.fold<double>(0, (sum, r) => sum + r.itemCost);
+
+        return '📋 Resep/BOM:\n$result\n\nTotal HPP: Rp ${totalCost.toStringAsFixed(0)}';
+      } else if (functionName == 'get_product_hpp') {
+        final hpp = await _storageRepo.calculateProductHPP(arguments['productId']);
+        return '💰 HPP (Harga Pokok Penjualan): Rp ${hpp.toStringAsFixed(0)}';
+      } else if (functionName == 'get_stock_summary') {
+        final summary = await _storageRepo.getStockSummary();
+        final healthyCount = summary.activeIngredients - summary.lowStockCount;
+        return '''
+📊 Ringkasan Inventory:
+- Total Bahan Baku: ${summary.totalIngredients} items
+- Low Stock Items: ${summary.lowStockCount} items ${summary.lowStockCount > 0 ? '⚠️' : '✅'}
+- Stok Aman: $healthyCount items
+- Total Nilai Stok: Rp ${summary.totalStockValue.toStringAsFixed(0)}
+''';
+      } else if (functionName == 'get_stock_movements') {
+        final movements = await _storageRepo.getStockMovements(
+          ingredientId: arguments['ingredientId'],
+          limit: arguments['limit'] ?? 50,
+        );
+
+        if (movements.isEmpty) {
+          return 'Belum ada riwayat pergerakan stok.';
+        }
+
+        final result = movements.take(10).map((m) {
+          final sign = m.isIncoming ? '+' : '-';
+          final typeIcon = m.movementType == MovementType.STOCK_IN ? '📥' :
+                          m.movementType == MovementType.AUTO_DEDUCT ? '🤖' : '✏️';
+          return '$typeIcon ${m.ingredient?.name ?? 'Unknown'}: $sign${m.absoluteQuantity.toStringAsFixed(1)} (${m.notes ?? m.movementType.displayName})';
+        }).join('\n');
+
+        return '📜 Riwayat Stok (${movements.length} records, showing 10):\n$result';
       }
 
       return 'Function executed but no response generated';

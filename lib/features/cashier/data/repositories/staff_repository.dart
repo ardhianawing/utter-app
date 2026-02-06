@@ -10,19 +10,31 @@ class StaffRepository {
   // AUTHENTICATION
   // ============================================================
 
-  /// Authenticate staff member using phone and PIN
+  /// Authenticate staff member using username/phone and PIN
   Future<StaffProfile?> authenticateStaff({
-    required String phone,
+    required String identifier,
     required String pin,
   }) async {
     try {
-      final response = await _supabase
+      // Try to find user by username first, then by phone
+      var response = await _supabase
           .from('profiles')
           .select()
-          .eq('phone', phone)
+          .eq('username', identifier)
           .eq('pin', pin)
           .eq('is_active', true)
           .maybeSingle();
+
+      // If not found by username, try by phone
+      if (response == null) {
+        response = await _supabase
+            .from('profiles')
+            .select()
+            .eq('phone', identifier)
+            .eq('pin', pin)
+            .eq('is_active', true)
+            .maybeSingle();
+      }
 
       if (response == null) return null;
 
