@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:mobile_scanner/mobile_scanner.dart' if (dart.library.html) 'dart:ui';
 import 'package:utter_app/features/customer/data/providers/order_context_provider.dart';
 import 'package:utter_app/features/customer/presentation/pages/menu_page.dart';
 
@@ -12,18 +13,92 @@ class QRScannerPage extends ConsumerStatefulWidget {
 }
 
 class _QRScannerPageState extends ConsumerState<QRScannerPage> {
-  MobileScannerController cameraController = MobileScannerController();
+  MobileScannerController? cameraController;
   bool _isProcessing = false;
+  final _tableNumberController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    if (!kIsWeb) {
+      cameraController = MobileScannerController();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    // Web version: Show manual table number input
+    if (kIsWeb) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Pilih Meja'),
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Card(
+              child: Padding(
+                padding: const EdgeInsets.all(32.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.table_restaurant,
+                      size: 64,
+                      color: Colors.green,
+                    ),
+                    const SizedBox(height: 24),
+                    const Text(
+                      'Masukkan Nomor Meja',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Masukkan nomor meja Anda untuk melihat menu',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                    const SizedBox(height: 32),
+                    TextField(
+                      controller: _tableNumberController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Nomor Meja',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.pin),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _submitTableNumber,
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.all(16),
+                        ),
+                        child: const Text('Lihat Menu'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Mobile version: QR Scanner
     return Scaffold(
       appBar: AppBar(
         title: const Text('Scan QR Code Meja'),
         actions: [
           IconButton(
             icon: ValueListenableBuilder(
-              valueListenable: cameraController.torchState,
+              valueListenable: cameraController!.torchState,
               builder: (context, state, child) {
                 switch (state) {
                   case TorchState.off:
@@ -35,18 +110,18 @@ class _QRScannerPageState extends ConsumerState<QRScannerPage> {
                 }
               },
             ),
-            onPressed: () => cameraController.toggleTorch(),
+            onPressed: () => cameraController!.toggleTorch(),
           ),
           IconButton(
             icon: const Icon(Icons.cameraswitch),
-            onPressed: () => cameraController.switchCamera(),
+            onPressed: () => cameraController!.switchCamera(),
           ),
         ],
       ),
       body: Stack(
         children: [
           MobileScanner(
-            controller: cameraController,
+            controller: cameraController!,
             onDetect: _onDetect,
           ),
           // Overlay with scan frame
@@ -79,6 +154,37 @@ class _QRScannerPageState extends ConsumerState<QRScannerPage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  void _submitTableNumber() async {
+    final tableNumberStr = _tableNumberController.text.trim();
+    if (tableNumberStr.isEmpty) {
+      _showError('Masukkan nomor meja');
+      return;
+    }
+
+    final tableNumber = int.tryParse(tableNumberStr);
+    if (tableNumber == null || tableNumber <= 0) {
+      _showError('Nomor meja tidak valid');
+      return;
+    }
+
+    // Generate a table ID (in real app, this should come from QR or database)
+    final tableId = 'table_$tableNumber';
+
+    // Set order context
+    ref.read(orderContextProvider.notifier).setTableContext(tableId, tableNumber);
+
+    // Navigate to menu page
+    if (!mounted) return;
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) => MenuPage(
+          tableId: tableId,
+          tableNumber: tableNumber,
+        ),
       ),
     );
   }
@@ -169,7 +275,8 @@ class _QRScannerPageState extends ConsumerState<QRScannerPage> {
 
   @override
   void dispose() {
-    cameraController.dispose();
+    _tableNumberController.dispose();
+    cameraController?.dispose();
     super.dispose();
   }
 }
