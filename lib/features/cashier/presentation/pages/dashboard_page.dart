@@ -756,29 +756,32 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     final showIncomingOrders = screenWidth > 1024; // Hide on small screens
 
     return Scaffold(
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          showGeneralDialog(
-            context: context,
-            barrierDismissible: true,
-            barrierLabel: 'AI Assistant',
-            pageBuilder: (context, anim1, anim2) {
-              return Align(
-                alignment: Alignment.centerRight,
-                child: SlideTransition(
-                  position: Tween<Offset>(
-                    begin: const Offset(1, 0),
-                    end: Offset.zero,
-                  ).animate(anim1),
-                  child: const AiAssistantDrawer(),
-                ),
-              );
-            },
-          );
-        },
-        backgroundColor: AppColors.infoBlue,
-        child: const Icon(Icons.psychology, color: Colors.white, size: 30),
-      ),
+      // AI Assistant - Admin Only
+      floatingActionButton: currentUser.role == UserRole.ADMIN
+          ? FloatingActionButton(
+              onPressed: () {
+                showGeneralDialog(
+                  context: context,
+                  barrierDismissible: true,
+                  barrierLabel: 'AI Assistant',
+                  pageBuilder: (context, anim1, anim2) {
+                    return Align(
+                      alignment: Alignment.centerRight,
+                      child: SlideTransition(
+                        position: Tween<Offset>(
+                          begin: const Offset(1, 0),
+                          end: Offset.zero,
+                        ).animate(anim1),
+                        child: const AiAssistantDrawer(),
+                      ),
+                    );
+                  },
+                );
+              },
+              backgroundColor: AppColors.infoBlue,
+              child: const Icon(Icons.psychology, color: Colors.white, size: 30),
+            )
+          : null, // Hide for Cashier & Kitchen
       appBar: AppBar(
         title: Row(
           children: [
