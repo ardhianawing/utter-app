@@ -217,52 +217,6 @@ class _StaffLoginPageState extends ConsumerState<StaffLoginPage> {
                                   ),
                           ),
                         ),
-                        const SizedBox(height: 16),
-
-                        // Demo Credentials
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.blue[50],
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.blue[200]!),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Demo Credentials:',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.blue[900],
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Admin: 081234567890 / 123456',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.blue[800],
-                                ),
-                              ),
-                              Text(
-                                'Cashier: 081234567891 / 111111',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.blue[800],
-                                ),
-                              ),
-                              Text(
-                                'Kitchen: 081234567892 / 222222',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.blue[800],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
                       ],
                     ),
                   ),
