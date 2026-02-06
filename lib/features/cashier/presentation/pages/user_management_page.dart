@@ -29,17 +29,22 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> {
           .select()
           .order('created_at', ascending: false);
 
+      print('Load users response: $response'); // Debug log
+
       setState(() {
         _users = (response as List)
             .map((json) => StaffProfile.fromJson(json))
             .toList();
         _isLoading = false;
       });
+
+      print('Loaded ${_users.length} users'); // Debug log
     } catch (e) {
+      print('Error loading users: $e'); // Debug log
       setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text('Error loading: $e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -153,13 +158,16 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> {
                 Navigator.pop(context);
 
                 try {
+                  // Convert role to lowercase for database
+                  final roleValue = selectedRole.name.toLowerCase();
+
                   if (isEdit) {
                     // Update existing user
                     final updateData = {
                       'name': name,
                       'username': username,
                       'phone': phone.isEmpty ? null : phone,
-                      'role': selectedRole.name,
+                      'role': roleValue,
                     };
 
                     // Update password if provided
@@ -167,10 +175,13 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> {
                       updateData['pin'] = password;
                     }
 
-                    await Supabase.instance.client
+                    final response = await Supabase.instance.client
                         .from('profiles')
                         .update(updateData)
-                        .eq('id', user!.id);
+                        .eq('id', user!.id)
+                        .select();
+
+                    print('Update response: $response'); // Debug log
 
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -182,14 +193,16 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> {
                     }
                   } else {
                     // Create new user
-                    await Supabase.instance.client.from('profiles').insert({
+                    final response = await Supabase.instance.client.from('profiles').insert({
                       'name': name,
                       'username': username,
                       'pin': password,
                       'phone': phone.isEmpty ? null : phone,
-                      'role': selectedRole.name,
+                      'role': roleValue,
                       'is_active': true,
-                    });
+                    }).select();
+
+                    print('Insert response: $response'); // Debug log
 
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -201,8 +214,9 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> {
                     }
                   }
 
-                  _loadUsers();
+                  await _loadUsers(); // Make sure this completes
                 } catch (e) {
+                  print('Error in user operation: $e'); // Debug log
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
