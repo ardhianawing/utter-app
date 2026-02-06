@@ -17,7 +17,7 @@ class AiService {
   AiService(this._productRepo, this._orderRepo, this._shiftRepo, this._storageRepo);
 
   Future<String> chat(String message, List<Map<String, dynamic>> history) async {
-    final url = Uri.parse('${AiConfig.geminiBaseUrl}/models/${AiConfig.geminiModel}:generateContent?key=${AiConfig.geminiApiKey}');
+    final url = Uri.parse('${AiConfig.baseUrl}/chat/completions');
 
     final systemPrompt = """
 You are 'Utter AI Manager', the intelligent brain and digital assistant for the Utter F&B POS System.
@@ -231,38 +231,22 @@ Current Date & Time: ${DateTime.now().toString()}
 Remember: Anda adalah OTAK dari aplikasi ini. Admin bisa mengandalkan Anda untuk operasi apapun.
 """;
 
-    // Convert history from OpenAI format to Gemini format
-    final geminiContents = <Map<String, dynamic>>[];
+    // Build messages in OpenAI format (DeepSeek compatible)
+    final messages = <Map<String, dynamic>>[];
 
-    // Add system prompt as first user message
-    geminiContents.add({
-      'role': 'user',
-      'parts': [{'text': systemPrompt}]
-    });
-    geminiContents.add({
-      'role': 'model',
-      'parts': [{'text': 'Understood. I am Utter AI Manager, ready to assist.'}]
+    // Add system prompt
+    messages.add({
+      'role': 'system',
+      'content': systemPrompt,
     });
 
-    // Convert history
-    for (var msg in history) {
-      if (msg['role'] == 'user') {
-        geminiContents.add({
-          'role': 'user',
-          'parts': [{'text': msg['content']}]
-        });
-      } else if (msg['role'] == 'assistant') {
-        geminiContents.add({
-          'role': 'model',
-          'parts': [{'text': msg['content']}]
-        });
-      }
-    }
+    // Add conversation history
+    messages.addAll(history);
 
-    // Add current message
-    geminiContents.add({
+    // Add current user message
+    messages.add({
       'role': 'user',
-      'parts': [{'text': message}]
+      'content': message,
     });
 
     try {
@@ -270,52 +254,39 @@ Remember: Anda adalah OTAK dari aplikasi ini. Admin bisa mengandalkan Anda untuk
         url,
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': 'Bearer ${AiConfig.apiKey}',
         },
         body: jsonEncode({
-          'contents': geminiContents,
-          'tools': [
-            {
-              'functionDeclarations': _getGeminiFunctionDeclarations(),
-            }
-          ],
-          'generationConfig': {
-            'temperature': 0.7,
-            'maxOutputTokens': 2048,
-          }
+          'model': AiConfig.model,
+          'messages': messages,
+          'functions': _getFunctionDeclarations(),
+          'temperature': 0.7,
+          'max_tokens': 2048,
         }),
       );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        final candidates = data['candidates'];
+        final choice = data['choices']?[0];
 
-        if (candidates == null || candidates.isEmpty) {
+        if (choice == null) {
           return "Error: No response from AI";
         }
 
-        final content = candidates[0]['content'];
-        final parts = content['parts'];
+        final responseMessage = choice['message'];
 
-        // Check for function calls
-        if (parts != null && parts.isNotEmpty) {
-          for (var part in parts) {
-            if (part['functionCall'] != null) {
-              // Handle function call
-              final functionCall = part['functionCall'];
-              final functionName = functionCall['name'];
-              final arguments = functionCall['args'] ?? {};
+        // Check for function call
+        if (responseMessage['function_call'] != null) {
+          final functionCall = responseMessage['function_call'];
+          final functionName = functionCall['name'];
+          final arguments = jsonDecode(functionCall['arguments']);
 
-              final result = await _executeFunctionCall(functionName, arguments);
-
-              // Return result directly for now (simplified)
-              return result;
-            } else if (part['text'] != null) {
-              return part['text'];
-            }
-          }
+          final result = await _executeFunctionCall(functionName, arguments);
+          return result;
         }
 
-        return "No valid response from AI";
+        // Return text response
+        return responseMessage['content'] ?? 'No valid response';
       } else {
         return "Error: ${response.statusCode} - ${response.body}";
       }
@@ -324,7 +295,7 @@ Remember: Anda adalah OTAK dari aplikasi ini. Admin bisa mengandalkan Anda untuk
     }
   }
 
-  List<Map<String, dynamic>> _getGeminiFunctionDeclarations() {
+  List<Map<String, dynamic>> _getFunctionDeclarations() {
     return [
       {
         'name': 'get_products',
