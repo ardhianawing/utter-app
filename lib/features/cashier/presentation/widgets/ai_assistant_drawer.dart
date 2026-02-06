@@ -185,7 +185,7 @@ class _AiAssistantDrawerState extends ConsumerState<AiAssistantDrawer> {
             bottomLeft: isUser ? const Radius.circular(15) : const Radius.circular(0),
           ),
         ),
-        child: Text(
+        child: SelectableText(
           text,
           style: TextStyle(
             color: isUser ? Colors.white : Colors.black87,
