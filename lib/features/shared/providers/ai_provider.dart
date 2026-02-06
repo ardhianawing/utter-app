@@ -5,6 +5,7 @@ import 'package:utter_app/features/customer/data/repositories/product_repository
 import 'package:utter_app/features/cashier/data/repositories/order_repository.dart';
 import 'package:utter_app/features/cashier/data/repositories/shift_repository.dart';
 import 'package:utter_app/features/storage/data/repositories/storage_repository.dart';
+import 'package:utter_app/features/finance/data/repositories/expense_repository.dart';
 
 final aiServiceProvider = Provider<AiService>((ref) {
   final supabase = Supabase.instance.client;
@@ -13,6 +14,7 @@ final aiServiceProvider = Provider<AiService>((ref) {
     OrderRepository(supabase),
     ShiftRepository(supabase),
     StorageRepository(supabase),
+    ExpenseRepository(supabase),
   );
 });
 

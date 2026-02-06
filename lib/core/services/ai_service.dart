@@ -7,14 +7,17 @@ import 'package:utter_app/features/cashier/data/repositories/order_repository.da
 import 'package:utter_app/features/cashier/data/repositories/shift_repository.dart';
 import 'package:utter_app/features/storage/data/repositories/storage_repository.dart';
 import 'package:utter_app/features/storage/domain/models/storage_models.dart';
+import 'package:utter_app/features/finance/data/repositories/expense_repository.dart';
+import 'package:utter_app/features/finance/domain/models/expense_models.dart';
 
 class AiService {
   final ProductRepository _productRepo;
   final OrderRepository _orderRepo;
   final ShiftRepository _shiftRepo;
   final StorageRepository _storageRepo;
+  final ExpenseRepository _expenseRepo;
 
-  AiService(this._productRepo, this._orderRepo, this._shiftRepo, this._storageRepo);
+  AiService(this._productRepo, this._orderRepo, this._shiftRepo, this._storageRepo, this._expenseRepo);
 
   Future<String> chat(String message, List<Map<String, dynamic>> history) async {
     final url = Uri.parse('${AiConfig.baseUrl}/chat/completions');
@@ -216,6 +219,12 @@ Anda BISA melakukan:
 ✅ Lihat produk terlaris (top products)
 ✅ Lihat laporan bulanan
 ✅ Lihat analitik shift
+✅ Lihat kategori pengeluaran
+✅ Catat pengeluaran bisnis (expense logging)
+✅ Lihat ringkasan pengeluaran bulanan
+✅ Atur budget bulanan per kategori
+✅ Bandingkan budget vs actual expense
+✅ Hitung laba bersih (net profit)
 
 ════════════════════════════════════════════════════════════════════════════════
 🚨 CRITICAL: FUNCTION CALLING RULES (WAJIB DIIKUTI!)
@@ -231,6 +240,9 @@ WAJIB PAKAI FUNCTION JIKA USER TANYA:
 ✅ Laporan bulanan → get_monthly_analytics
 ✅ Resep produk → get_product_recipes
 ✅ HPP produk → get_product_hpp
+✅ Pengeluaran bulan ini → get_expenses_summary
+✅ Budget vs actual → get_budget_vs_actual
+✅ Laba bersih → calculate_net_profit
 
 DILARANG KERAS:
 ❌ JANGAN PERNAH mengarang/membuat data sendiri
@@ -270,6 +282,8 @@ WAJIB KONFIRMASI:
 ✅ Tambah bahan baku → "Apakah Anda yakin ingin menambahkan bahan [nama]?"
 ✅ Update stock → "Apakah Anda yakin ingin mengubah stok [nama] menjadi [jumlah]?"
 ✅ Hapus bahan → "Apakah Anda yakin ingin menghapus bahan [nama]?"
+✅ Catat pengeluaran → "Apakah Anda yakin ingin mencatat pengeluaran Rp [jumlah] untuk [kategori]?"
+✅ Atur budget → "Apakah Anda yakin ingin mengatur budget Rp [jumlah] untuk [kategori] bulan [bulan]?"
 
 TIDAK PERLU KONFIRMASI:
 ❌ Get/view data (read-only operations)
@@ -625,6 +639,83 @@ Remember: Anda adalah OTAK dari aplikasi ini, tapi Anda TIDAK PUNYA DATA sendiri
           },
         },
       },
+      // ═══════════════════════════════════════════════════════════════
+      // FINANCE & EXPENSE TRACKING FUNCTIONS
+      // ═══════════════════════════════════════════════════════════════
+      {
+        'name': 'get_expense_categories',
+        'description': 'Mendapatkan daftar kategori pengeluaran (Sewa, Listrik, Gaji, Bahan Baku, dll).',
+        'parameters': {
+          'type': 'object',
+          'properties': {},
+        },
+      },
+      {
+        'name': 'log_expense',
+        'description': 'Mencatat pengeluaran bisnis (expense) baru ke sistem.',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'categoryId': {'type': 'string', 'description': 'ID kategori expense'},
+            'amount': {'type': 'number', 'description': 'Jumlah pengeluaran dalam Rupiah'},
+            'description': {'type': 'string', 'description': 'Keterangan/deskripsi pengeluaran'},
+            'paymentMethod': {'type': 'string', 'description': 'CASH, TRANSFER, atau DEBIT'},
+            'expenseDate': {'type': 'string', 'description': 'Tanggal pengeluaran (format: YYYY-MM-DD)'},
+          },
+          'required': ['categoryId', 'amount', 'description', 'paymentMethod'],
+        },
+      },
+      {
+        'name': 'get_expenses_summary',
+        'description': 'Mendapatkan ringkasan pengeluaran untuk periode tertentu (total expense, breakdown per kategori).',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'year': {'type': 'integer', 'description': 'Tahun'},
+            'month': {'type': 'integer', 'description': 'Bulan (1-12)'},
+          },
+          'required': ['year', 'month'],
+        },
+      },
+      {
+        'name': 'set_monthly_budget',
+        'description': 'Mengatur atau update budget bulanan untuk kategori pengeluaran tertentu.',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'categoryId': {'type': 'string', 'description': 'ID kategori expense'},
+            'amount': {'type': 'number', 'description': 'Jumlah budget dalam Rupiah'},
+            'year': {'type': 'integer', 'description': 'Tahun'},
+            'month': {'type': 'integer', 'description': 'Bulan (1-12)'},
+            'notes': {'type': 'string', 'description': 'Catatan budget (opsional)'},
+          },
+          'required': ['categoryId', 'amount', 'year', 'month'],
+        },
+      },
+      {
+        'name': 'get_budget_vs_actual',
+        'description': 'Mendapatkan perbandingan budget vs pengeluaran aktual per kategori untuk bulan tertentu (monitoring budget compliance).',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'year': {'type': 'integer', 'description': 'Tahun'},
+            'month': {'type': 'integer', 'description': 'Bulan (1-12)'},
+          },
+          'required': ['year', 'month'],
+        },
+      },
+      {
+        'name': 'calculate_net_profit',
+        'description': 'Menghitung laba bersih (net profit) untuk periode tertentu = Total Penjualan - Total Pengeluaran.',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'year': {'type': 'integer', 'description': 'Tahun'},
+            'month': {'type': 'integer', 'description': 'Bulan (1-12)'},
+          },
+          'required': ['year', 'month'],
+        },
+      },
     ];
   }
 
@@ -868,6 +959,142 @@ Remember: Anda adalah OTAK dari aplikasi ini, tapi Anda TIDAK PUNYA DATA sendiri
         }).join('\n');
 
         return '📜 Riwayat Stok (${movements.length} records, showing 10):\n$result';
+      }
+      // ═══════════════════════════════════════════════════════════════
+      // EXPENSE TRACKING FUNCTIONS
+      // ═══════════════════════════════════════════════════════════════
+      else if (functionName == 'get_expense_categories') {
+        final categories = await _expenseRepo.getCategories();
+        final result = categories.map((c) => '- ${c.name} (${c.description ?? 'No description'})').join('\n');
+        return '📂 Kategori Pengeluaran:\n$result';
+      } else if (functionName == 'log_expense') {
+        final categoryId = arguments['categoryId'] as String;
+        final amount = (arguments['amount'] as num).toDouble();
+        final description = arguments['description'] as String;
+        final paymentMethodStr = arguments['paymentMethod'] as String;
+        final expenseDateStr = arguments['expenseDate'] as String?;
+
+        final paymentMethod = PaymentMethod.values.firstWhere(
+          (e) => e.name == paymentMethodStr.toUpperCase(),
+          orElse: () => PaymentMethod.CASH,
+        );
+
+        final expenseDate = expenseDateStr != null
+            ? DateTime.parse(expenseDateStr)
+            : DateTime.now();
+
+        await _expenseRepo.createExpense(
+          categoryId: categoryId,
+          amount: amount,
+          description: description,
+          paymentMethod: paymentMethod,
+          expenseDate: expenseDate,
+        );
+
+        return '✅ Pengeluaran berhasil dicatat: Rp ${amount.toStringAsFixed(0)} - $description';
+      } else if (functionName == 'get_expenses_summary') {
+        final year = arguments['year'] as int;
+        final month = arguments['month'] as int;
+
+        final startDate = DateTime(year, month, 1);
+        final endDate = DateTime(year, month + 1, 0);
+
+        final summary = await _expenseRepo.getExpenseSummary(
+          startDate: startDate,
+          endDate: endDate,
+        );
+
+        if (summary.expenseCount == 0) {
+          return 'Belum ada pengeluaran untuk bulan ini.';
+        }
+
+        final categoryBreakdown = summary.byCategory.entries
+            .map((e) => '- ${e.key}: Rp ${e.value.toStringAsFixed(0)}')
+            .join('\n');
+
+        return '''
+💰 Ringkasan Pengeluaran Bulan $month/$year:
+- Total: ${summary.formattedTotal}
+- Jumlah Transaksi: ${summary.expenseCount}
+
+Breakdown per Kategori:
+$categoryBreakdown
+''';
+      } else if (functionName == 'set_monthly_budget') {
+        final categoryId = arguments['categoryId'] as String;
+        final amount = (arguments['amount'] as num).toDouble();
+        final year = arguments['year'] as int;
+        final month = arguments['month'] as int;
+        final notes = arguments['notes'] as String?;
+
+        await _expenseRepo.setBudget(
+          categoryId: categoryId,
+          amount: amount,
+          month: month,
+          year: year,
+          notes: notes,
+        );
+
+        return '✅ Budget berhasil diatur: Rp ${amount.toStringAsFixed(0)} untuk bulan $month/$year';
+      } else if (functionName == 'get_budget_vs_actual') {
+        final year = arguments['year'] as int;
+        final month = arguments['month'] as int;
+
+        final comparison = await _expenseRepo.getBudgetVsActual(
+          month: month,
+          year: year,
+        );
+
+        if (comparison.isEmpty) {
+          return 'Belum ada budget yang diatur untuk bulan ini.';
+        }
+
+        final result = comparison.map((c) {
+          final statusIcon = c.isOverBudget ? '🔴' : '🟢';
+          final utilizationPercent = c.utilizationPercent.toStringAsFixed(1);
+          return '$statusIcon ${c.categoryName}:\n  Budget: Rp ${c.budgetAmount.toStringAsFixed(0)}\n  Actual: Rp ${c.actualAmount.toStringAsFixed(0)}\n  Variance: Rp ${c.variance.toStringAsFixed(0)} ($utilizationPercent%)';
+        }).join('\n\n');
+
+        return '''
+📊 Budget vs Actual ($month/$year):
+
+$result
+''';
+      } else if (functionName == 'calculate_net_profit') {
+        final year = arguments['year'] as int;
+        final month = arguments['month'] as int;
+
+        // Get sales data
+        final salesData = await _orderRepo.getMonthlyAnalytics(year, month);
+        final totalRevenue = salesData['totalRevenue'] as double? ?? 0.0;
+
+        // Get expense data
+        final startDate = DateTime(year, month, 1);
+        final endDate = DateTime(year, month + 1, 0);
+        final expenseSummary = await _expenseRepo.getExpenseSummary(
+          startDate: startDate,
+          endDate: endDate,
+        );
+        final totalExpenses = expenseSummary.totalExpenses;
+
+        // Calculate net profit
+        final netProfit = totalRevenue - totalExpenses;
+        final profitMargin = totalRevenue > 0
+            ? (netProfit / totalRevenue * 100).toStringAsFixed(1)
+            : '0.0';
+
+        final profitIcon = netProfit >= 0 ? '📈' : '📉';
+        final profitStatus = netProfit >= 0 ? 'PROFIT' : 'LOSS';
+
+        return '''
+$profitIcon Perhitungan Laba Bersih ($month/$year):
+
+💵 Total Pendapatan: Rp ${totalRevenue.toStringAsFixed(0)}
+💸 Total Pengeluaran: Rp ${totalExpenses.toStringAsFixed(0)}
+━━━━━━━━━━━━━━━━━━━━━━
+🎯 Net Profit: Rp ${netProfit.toStringAsFixed(0)} ($profitStatus)
+📊 Profit Margin: $profitMargin%
+''';
       }
 
       return 'Function executed but no response generated';

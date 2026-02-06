@@ -18,6 +18,7 @@ import 'shift_history_page.dart';
 import 'product_sales_report_page.dart';
 import 'user_management_page.dart';
 import 'monthly_analytics_page.dart';
+import '../../../finance/presentation/pages/expense_management_page.dart';
 import '../widgets/product_category_section.dart';
 import '../../../storage/presentation/pages/storage_main_page.dart';
 import '../../../../core/utils/print_service.dart';
@@ -1253,6 +1254,21 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                       context,
                       MaterialPageRoute(
                         builder: (context) => const UserManagementPage(),
+                      ),
+                    );
+                  },
+                  width: isMobile ? screenWidth - 48 : (screenWidth - 80) / 3,
+                ),
+                _buildAdminActionCard(
+                  icon: Icons.account_balance_wallet,
+                  title: 'Kelola Pengeluaran',
+                  description: 'Tracking expense & budget',
+                  color: Colors.red.shade700,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const ExpenseManagementPage(),
                       ),
                     );
                   },
