@@ -90,7 +90,7 @@ class _AiAssistantDrawerState extends ConsumerState<AiAssistantDrawer> {
                         ),
                       ),
                       Text(
-                        'Powered by Google Gemini AI',
+                        'Powered by DeepSeek AI',
                         style: TextStyle(
                           color: Colors.white70,
                           fontSize: 12,
