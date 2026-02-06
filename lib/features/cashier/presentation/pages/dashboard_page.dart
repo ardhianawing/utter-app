@@ -757,7 +757,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
 
     return Scaffold(
       // AI Assistant - Admin Only
-      floatingActionButton: currentUser.role == UserRole.ADMIN
+      floatingActionButton: (currentUser?.role == UserRole.ADMIN)
           ? FloatingActionButton(
               onPressed: () {
                 showGeneralDialog(
