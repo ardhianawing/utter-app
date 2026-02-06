@@ -33,12 +33,28 @@ class _RecipeEditorSheetState extends ConsumerState<RecipeEditorSheet> {
     try {
       final recipes = await ref.read(storageRepositoryProvider).getProductRecipes(widget.product.id);
       setState(() {
-        _recipeItems = recipes.map((r) => _RecipeItem(
-          id: r.id,
-          ingredientId: r.ingredientId,
-          ingredient: r.ingredient,
-          quantity: r.quantity,
-        )).toList();
+        _recipeItems = recipes.map((r) {
+          // Auto-select display unit based on quantity size
+          IngredientUnit? displayUnit;
+          if (r.ingredient != null) {
+            final baseUnit = r.ingredient!.unit.baseUnit;
+            if (baseUnit == IngredientUnit.ml) {
+              displayUnit = r.quantity >= 1000 ? IngredientUnit.liter : IngredientUnit.ml;
+            } else if (baseUnit == IngredientUnit.gram) {
+              displayUnit = r.quantity >= 1000 ? IngredientUnit.kg : IngredientUnit.gram;
+            } else {
+              displayUnit = r.ingredient!.unit;
+            }
+          }
+
+          return _RecipeItem(
+            id: r.id,
+            ingredientId: r.ingredientId,
+            ingredient: r.ingredient,
+            quantity: r.quantity, // already in base unit from DB
+            displayUnit: displayUnit,
+          );
+        }).toList();
         _isLoading = false;
       });
     } catch (e) {
@@ -328,18 +344,18 @@ class _RecipeEditorSheetState extends ConsumerState<RecipeEditorSheet> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // Qty controls
+                // Qty controls with unit selector
                 Row(
                   children: [
-                    _buildSmallButton(Icons.remove, () => _updateQty(item.ingredientId, item.quantity - 1)),
+                    _buildSmallButton(Icons.remove, () => _adjustQty(item, -1)),
                     const SizedBox(width: 8),
                     SizedBox(
-                      width: 64,
+                      width: 60,
                       child: TextField(
-                        controller: TextEditingController(text: item.quantity.toStringAsFixed(item.quantity == item.quantity.roundToDouble() ? 0 : 1)),
+                        controller: TextEditingController(text: item.displayQuantity.toStringAsFixed(item.displayQuantity == item.displayQuantity.roundToDouble() ? 0 : 1)),
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
                         decoration: InputDecoration(
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                           enabledBorder: OutlineInputBorder(
@@ -349,13 +365,37 @@ class _RecipeEditorSheetState extends ConsumerState<RecipeEditorSheet> {
                           contentPadding: const EdgeInsets.symmetric(vertical: 6),
                           isDense: true,
                         ),
-                        onSubmitted: (v) => _updateQty(item.ingredientId, double.tryParse(v) ?? item.quantity),
+                        onSubmitted: (v) => _updateDisplayQty(item, double.tryParse(v) ?? item.displayQuantity),
                       ),
                     ),
                     const SizedBox(width: 8),
-                    _buildSmallButton(Icons.add, () => _updateQty(item.ingredientId, item.quantity + 1)),
-                    const SizedBox(width: 8),
-                    Text(ing.unit.displayName, style: TextStyle(fontSize: 12, color: Colors.grey[400])),
+                    _buildSmallButton(Icons.add, () => _adjustQty(item, 1)),
+                    const SizedBox(width: 6),
+                    // Unit selector dropdown
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryBlack.withOpacity(0.03),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: DropdownButton<IngredientUnit>(
+                        value: item.effectiveDisplayUnit,
+                        underline: const SizedBox.shrink(),
+                        isDense: true,
+                        style: const TextStyle(fontSize: 12, color: Colors.black87, fontWeight: FontWeight.w600),
+                        items: ing.unit.recipeInputUnits.map((unit) {
+                          return DropdownMenuItem(
+                            value: unit,
+                            child: Text(unit.displayName),
+                          );
+                        }).toList(),
+                        onChanged: (newUnit) {
+                          if (newUnit != null) {
+                            _changeUnit(item, newUnit);
+                          }
+                        },
+                      ),
+                    ),
                   ],
                 ),
                 // Cost
@@ -452,8 +492,19 @@ class _RecipeEditorSheetState extends ConsumerState<RecipeEditorSheet> {
   // ── Actions ──
 
   void _addIngredient(Ingredient ing) {
+    // Auto-select appropriate unit for new ingredient
+    final baseUnit = ing.unit.baseUnit;
+    final initialDisplayUnit = (baseUnit == IngredientUnit.ml) ? IngredientUnit.ml :
+                               (baseUnit == IngredientUnit.gram) ? IngredientUnit.gram :
+                               ing.unit;
+
     setState(() {
-      _recipeItems.add(_RecipeItem(ingredientId: ing.id, ingredient: ing, quantity: 0));
+      _recipeItems.add(_RecipeItem(
+        ingredientId: ing.id,
+        ingredient: ing,
+        quantity: 0, // quantity in base unit
+        displayUnit: initialDisplayUnit,
+      ));
       _showAddIng = false;
       _addSearch = '';
       _hasChanges = true;
@@ -467,11 +518,40 @@ class _RecipeEditorSheetState extends ConsumerState<RecipeEditorSheet> {
     });
   }
 
-  void _updateQty(String ingredientId, double newQty) {
+  /// Adjust quantity by increment (in display unit)
+  void _adjustQty(_RecipeItem item, double increment) {
+    final newDisplayQty = (item.displayQuantity + increment).clamp(0.0, 99999.0);
+    _updateDisplayQty(item, newDisplayQty);
+  }
+
+  /// Update quantity from display input (convert to base unit for storage)
+  void _updateDisplayQty(_RecipeItem item, double newDisplayQty) {
+    if (item.ingredient == null) return;
+
+    final displayUnit = item.effectiveDisplayUnit;
+    final baseUnit = item.ingredient!.unit.baseUnit;
+
+    // Convert display quantity to base unit for storage
+    final newBaseQty = displayUnit.convertTo(newDisplayQty, baseUnit);
+
     setState(() {
-      final idx = _recipeItems.indexWhere((r) => r.ingredientId == ingredientId);
+      final idx = _recipeItems.indexWhere((r) => r.ingredientId == item.ingredientId);
       if (idx != -1) {
-        _recipeItems[idx] = _recipeItems[idx].copyWith(quantity: newQty.clamp(0, 99999));
+        _recipeItems[idx] = _recipeItems[idx].copyWith(
+          quantity: newBaseQty.clamp(0, 999999),
+          displayUnit: displayUnit,
+        );
+        _hasChanges = true;
+      }
+    });
+  }
+
+  /// Change the display unit (converts current quantity to new unit)
+  void _changeUnit(_RecipeItem item, IngredientUnit newUnit) {
+    setState(() {
+      final idx = _recipeItems.indexWhere((r) => r.ingredientId == item.ingredientId);
+      if (idx != -1) {
+        _recipeItems[idx] = _recipeItems[idx].copyWith(displayUnit: newUnit);
         _hasChanges = true;
       }
     });
@@ -527,16 +607,52 @@ class _RecipeItem {
   final String? id;
   final String ingredientId;
   final Ingredient? ingredient;
-  final double quantity;
+  final double quantity; // stored in BASE unit (ml/gram)
+  final IngredientUnit? displayUnit; // unit for display/input (ml/liter/gram/kg)
 
-  _RecipeItem({this.id, required this.ingredientId, this.ingredient, required this.quantity});
+  _RecipeItem({
+    this.id,
+    required this.ingredientId,
+    this.ingredient,
+    required this.quantity,
+    this.displayUnit,
+  });
 
-  _RecipeItem copyWith({String? id, String? ingredientId, Ingredient? ingredient, double? quantity}) {
+  /// Get quantity in display unit
+  double get displayQuantity {
+    if (ingredient == null || displayUnit == null) return quantity;
+    final baseUnit = ingredient!.unit.baseUnit;
+    return baseUnit.convertTo(quantity, displayUnit!);
+  }
+
+  /// Get the display unit (auto-select if not set)
+  IngredientUnit get effectiveDisplayUnit {
+    if (displayUnit != null) return displayUnit!;
+    if (ingredient == null) return IngredientUnit.gram;
+
+    final baseUnit = ingredient!.unit.baseUnit;
+    // Auto-select user-friendly unit based on quantity
+    if (baseUnit == IngredientUnit.ml) {
+      return quantity >= 1000 ? IngredientUnit.liter : IngredientUnit.ml;
+    } else if (baseUnit == IngredientUnit.gram) {
+      return quantity >= 1000 ? IngredientUnit.kg : IngredientUnit.gram;
+    }
+    return ingredient!.unit;
+  }
+
+  _RecipeItem copyWith({
+    String? id,
+    String? ingredientId,
+    Ingredient? ingredient,
+    double? quantity,
+    IngredientUnit? displayUnit,
+  }) {
     return _RecipeItem(
       id: id ?? this.id,
       ingredientId: ingredientId ?? this.ingredientId,
       ingredient: ingredient ?? this.ingredient,
       quantity: quantity ?? this.quantity,
+      displayUnit: displayUnit ?? this.displayUnit,
     );
   }
 }

@@ -27,6 +27,75 @@ extension IngredientUnitExtension on IngredientUnit {
 
   String get dbValue => toString().split('.').last;
 
+  /// Get the base unit (smallest unit) for this unit type
+  IngredientUnit get baseUnit {
+    switch (this) {
+      case IngredientUnit.kg:
+        return IngredientUnit.gram;
+      case IngredientUnit.liter:
+        return IngredientUnit.ml;
+      default:
+        return this;
+    }
+  }
+
+  /// Check if this unit is compatible with another (can be converted)
+  bool isCompatibleWith(IngredientUnit other) {
+    return baseUnit == other.baseUnit;
+  }
+
+  /// Convert quantity from this unit to another compatible unit
+  double convertTo(double quantity, IngredientUnit targetUnit) {
+    if (!isCompatibleWith(targetUnit)) return quantity;
+
+    // First convert to base unit
+    double baseQuantity;
+    switch (this) {
+      case IngredientUnit.kg:
+        baseQuantity = quantity * 1000; // kg to gram
+        break;
+      case IngredientUnit.liter:
+        baseQuantity = quantity * 1000; // liter to ml
+        break;
+      default:
+        baseQuantity = quantity;
+    }
+
+    // Then convert from base unit to target
+    switch (targetUnit) {
+      case IngredientUnit.kg:
+        return baseQuantity / 1000; // gram to kg
+      case IngredientUnit.liter:
+        return baseQuantity / 1000; // ml to liter
+      default:
+        return baseQuantity;
+    }
+  }
+
+  /// Get conversion factor to base unit (for recipe storage)
+  double get toBaseUnitFactor {
+    switch (this) {
+      case IngredientUnit.kg:
+        return 1000.0;
+      case IngredientUnit.liter:
+        return 1000.0;
+      default:
+        return 1.0;
+    }
+  }
+
+  /// Get user-friendly units for recipe input based on stock unit
+  List<IngredientUnit> get recipeInputUnits {
+    switch (baseUnit) {
+      case IngredientUnit.ml:
+        return [IngredientUnit.ml, IngredientUnit.liter];
+      case IngredientUnit.gram:
+        return [IngredientUnit.gram, IngredientUnit.kg];
+      default:
+        return [this];
+    }
+  }
+
   static IngredientUnit fromString(String value) {
     return IngredientUnit.values.firstWhere(
       (e) => e.toString().split('.').last.toLowerCase() == value.toLowerCase(),
@@ -221,7 +290,7 @@ class ProductRecipe {
   final String id;
   final String productId;
   final String ingredientId;
-  final double quantity;
+  final double quantity; // stored in BASE unit (gram/ml)
   final DateTime createdAt;
   final Ingredient? ingredient; // joined data
 
@@ -234,13 +303,49 @@ class ProductRecipe {
     this.ingredient,
   });
 
-  /// Calculate cost for this recipe item
-  double get itemCost => quantity * (ingredient?.costPerUnit ?? 0);
+  /// Calculate cost for this recipe item (quantity is in base unit, cost is per stock unit)
+  double get itemCost {
+    if (ingredient == null) return 0;
+    // Convert recipe quantity (base unit) to ingredient's stock unit for cost calculation
+    final stockUnit = ingredient!.unit;
+    final baseUnit = stockUnit.baseUnit;
+    final qtyInStockUnit = baseUnit.convertTo(quantity, stockUnit);
+    return qtyInStockUnit * ingredient!.costPerUnit;
+  }
 
-  /// Format quantity display with ingredient unit
+  /// Format quantity display in user-friendly unit
   String get quantityDisplay {
-    final unitStr = ingredient?.unit.displayName ?? '';
-    return '${quantity.toStringAsFixed(3)} $unitStr';
+    if (ingredient == null) return '${quantity.toStringAsFixed(1)}';
+
+    final stockUnit = ingredient!.unit;
+    final baseUnit = stockUnit.baseUnit;
+
+    // Auto-select display unit based on quantity size
+    String displayQty;
+    String displayUnit;
+
+    if (baseUnit == IngredientUnit.ml) {
+      if (quantity >= 1000) {
+        displayQty = (quantity / 1000).toStringAsFixed(quantity % 1000 == 0 ? 0 : 2);
+        displayUnit = 'liter';
+      } else {
+        displayQty = quantity.toStringAsFixed(quantity == quantity.roundToDouble() ? 0 : 1);
+        displayUnit = 'ml';
+      }
+    } else if (baseUnit == IngredientUnit.gram) {
+      if (quantity >= 1000) {
+        displayQty = (quantity / 1000).toStringAsFixed(quantity % 1000 == 0 ? 0 : 2);
+        displayUnit = 'kg';
+      } else {
+        displayQty = quantity.toStringAsFixed(quantity == quantity.roundToDouble() ? 0 : 1);
+        displayUnit = 'gram';
+      }
+    } else {
+      displayQty = quantity.toStringAsFixed(quantity == quantity.roundToDouble() ? 0 : 1);
+      displayUnit = stockUnit.displayName;
+    }
+
+    return '$displayQty $displayUnit';
   }
 
   factory ProductRecipe.fromJson(Map<String, dynamic> json) {

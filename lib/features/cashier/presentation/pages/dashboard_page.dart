@@ -787,7 +787,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
               fit: BoxFit.contain,
             ),
             const SizedBox(width: 12),
-            const Text('CASHIER DASHBOARD'),
+            Text(currentUser?.role == UserRole.ADMIN ? 'ADMIN DASHBOARD' : 'CASHIER DASHBOARD'),
           ],
         ),
         actions: [
@@ -1111,48 +1111,230 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
               );
             },
           ),
-          // Bottom: Main Content
+          // Bottom: Main Content (Admin vs Cashier view)
           Expanded(
-            child: isMobile && isSmallHeight 
-              // For small heights (landscape mobile), make the whole content scrollable
-              ? SingleChildScrollView(
-                  child: Column(
-                    children: [
-                      // Menu Section (Fixed height to allow inner scroll)
-                      SizedBox(
-                        height: 500,
-                        child: _buildMenuSection(),
+            child: currentUser?.role == UserRole.ADMIN
+              // ADMIN VIEW - Quick access dashboard
+              ? _buildAdminDashboard(screenWidth, isMobile)
+              // CASHIER VIEW - POS Interface
+              : (isMobile && isSmallHeight
+                  // For small heights (landscape mobile), make the whole content scrollable
+                  ? SingleChildScrollView(
+                      child: Column(
+                        children: [
+                          // Menu Section (Fixed height to allow inner scroll)
+                          SizedBox(
+                            height: 500,
+                            child: _buildMenuSection(),
+                          ),
+                          // Cart Section (Stacked below menu)
+                          if (_cart.isNotEmpty) _buildCartSection(isMobile, screenWidth),
+                        ],
                       ),
-                      // Cart Section (Stacked below menu)
-                      if (_cart.isNotEmpty) _buildCartSection(isMobile, screenWidth),
-                    ],
-                  ),
-                )
-              // For large screens/tablets, use the side-by-side or stacked layout
-              : Flex(
-                  direction: isMobile ? Axis.vertical : Axis.horizontal,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Left Panel: Incoming Orders (Desktop/Tablet only)
-                    if (showIncomingOrders)
-                      SizedBox(
-                        width: incomingOrdersWidth,
-                        child: _buildIncomingOrdersSection(),
-                      ),
-                    
-                    // Center Panel: Menu
-                    Expanded(
-                      flex: 3,
-                      child: _buildMenuSection(),
-                    ),
+                    )
+                  // For large screens/tablets, use the side-by-side or stacked layout
+                  : Flex(
+                      direction: isMobile ? Axis.vertical : Axis.horizontal,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // Left Panel: Incoming Orders (Desktop/Tablet only)
+                        if (showIncomingOrders)
+                          SizedBox(
+                            width: incomingOrdersWidth,
+                            child: _buildIncomingOrdersSection(),
+                          ),
 
-                    // Right Panel: Cart
-                    if (!isMobile || _cart.isNotEmpty)
-                      _buildCartSection(isMobile, screenWidth),
-                  ],
-                ),
+                        // Center Panel: Menu
+                        Expanded(
+                          flex: 3,
+                          child: _buildMenuSection(),
+                        ),
+
+                        // Right Panel: Cart
+                        if (!isMobile || _cart.isNotEmpty)
+                          _buildCartSection(isMobile, screenWidth),
+                      ],
+                    )),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildAdminDashboard(double screenWidth, bool isMobile) {
+    return Container(
+      color: Colors.grey[50],
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Welcome header
+            Text(
+              'Admin Dashboard',
+              style: TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey[800],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Kelola menu, lihat laporan, dan pantau performa bisnis',
+              style: TextStyle(fontSize: 15, color: Colors.grey[600]),
+            ),
+            const SizedBox(height: 32),
+
+            // Quick Actions Grid
+            Wrap(
+              spacing: 16,
+              runSpacing: 16,
+              children: [
+                _buildAdminActionCard(
+                  icon: Icons.restaurant_menu,
+                  title: 'Kelola Menu',
+                  description: 'Tambah, edit, hapus produk',
+                  color: Colors.blue,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const AdminMenuPage()),
+                    );
+                  },
+                  width: isMobile ? screenWidth - 48 : (screenWidth - 80) / 3,
+                ),
+                _buildAdminActionCard(
+                  icon: Icons.assessment,
+                  title: 'Laporan Produk',
+                  description: 'Analisis penjualan produk',
+                  color: Colors.green,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const ProductSalesReportPage(),
+                      ),
+                    );
+                  },
+                  width: isMobile ? screenWidth - 48 : (screenWidth - 80) / 3,
+                ),
+                _buildAdminActionCard(
+                  icon: Icons.analytics,
+                  title: 'Analytics Bulanan',
+                  description: 'Dashboard performa lengkap',
+                  color: Colors.purple,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => MonthlyAnalyticsPage(),
+                      ),
+                    );
+                  },
+                  width: isMobile ? screenWidth - 48 : (screenWidth - 80) / 3,
+                ),
+                _buildAdminActionCard(
+                  icon: Icons.inventory_2,
+                  title: 'Storage & Inventory',
+                  description: 'Kelola bahan baku & resep',
+                  color: Colors.orange,
+                  onTap: () {
+                    Navigator.pushNamed(context, '/storage');
+                  },
+                  width: isMobile ? screenWidth - 48 : (screenWidth - 80) / 3,
+                ),
+                _buildAdminActionCard(
+                  icon: Icons.history,
+                  title: 'Riwayat Shift',
+                  description: 'Lihat rekap shift kasir',
+                  color: Colors.teal,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const ShiftHistoryPage()),
+                    );
+                  },
+                  width: isMobile ? screenWidth - 48 : (screenWidth - 80) / 3,
+                ),
+                _buildAdminActionCard(
+                  icon: Icons.soup_kitchen,
+                  title: 'Kitchen Display',
+                  description: 'Monitor dapur real-time',
+                  color: Colors.red,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const KitchenDisplayPage(),
+                      ),
+                    );
+                  },
+                  width: isMobile ? screenWidth - 48 : (screenWidth - 80) / 3,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAdminActionCard({
+    required IconData icon,
+    required String title,
+    required String description,
+    required Color color,
+    required VoidCallback onTap,
+    required double width,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        width: width,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.grey[200]!),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: color, size: 28),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              description,
+              style: TextStyle(
+                fontSize: 13,
+                color: Colors.grey[600],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1393,28 +1575,29 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
               ],
             ),
           ),
-          // Cart Items List
-          _cart.isEmpty
-              ? const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(20.0),
-                    child: Text(
-                      'Cart is empty\nTap products to add',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.grey),
+          // Cart Items List - wrapped in Expanded to prevent overflow
+          Expanded(
+            child: _cart.isEmpty
+                ? const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(20.0),
+                      child: Text(
+                        'Cart is empty\nTap products to add',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.grey),
+                      ),
                     ),
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    itemCount: _cart.length,
+                    itemBuilder: (context, index) {
+                      final cartItem = _cart[index];
+                      return _buildCartItemTile(cartItem);
+                    },
                   ),
-                )
-              : ListView.builder(
-                  shrinkWrap: true,
-                  physics: isMobile ? const NeverScrollableScrollPhysics() : null,
-                  padding: const EdgeInsets.only(bottom: 8),
-                  itemCount: _cart.length,
-                  itemBuilder: (context, index) {
-                    final cartItem = _cart[index];
-                    return _buildCartItemTile(cartItem);
-                  },
-                ),
+          ),
+          // Checkout section always visible at bottom
           if (_cart.isNotEmpty) _buildCheckoutSection(),
         ],
       ),
