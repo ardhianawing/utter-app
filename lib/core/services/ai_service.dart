@@ -15,8 +15,8 @@ class AiService {
   AiService(this._productRepo, this._orderRepo, this._shiftRepo);
 
   Future<String> chat(String message, List<Map<String, dynamic>> history) async {
-    final url = Uri.parse('${AiConfig.deepseekBaseUrl}/chat/completions');
-    
+    final url = Uri.parse('${AiConfig.geminiBaseUrl}/models/${AiConfig.geminiModel}:generateContent?key=${AiConfig.geminiApiKey}');
+
     final systemPrompt = """
 You are 'Utter AI Manager', a digital CEO assistant and system expert for the Utter F&B Ecosystem.
 
@@ -57,37 +57,91 @@ Current Date: ${DateTime.now().toString()}
 Note: Selalu konfirmasi singkat sebelum melakukan aksi hapus/tambah/ubah data.
 """;
 
-    final messages = [
-      {'role': 'system', 'content': systemPrompt},
-      ...history,
-      {'role': 'user', 'content': message},
-    ];
+    // Convert history from OpenAI format to Gemini format
+    final geminiContents = <Map<String, dynamic>>[];
+
+    // Add system prompt as first user message
+    geminiContents.add({
+      'role': 'user',
+      'parts': [{'text': systemPrompt}]
+    });
+    geminiContents.add({
+      'role': 'model',
+      'parts': [{'text': 'Understood. I am Utter AI Manager, ready to assist.'}]
+    });
+
+    // Convert history
+    for (var msg in history) {
+      if (msg['role'] == 'user') {
+        geminiContents.add({
+          'role': 'user',
+          'parts': [{'text': msg['content']}]
+        });
+      } else if (msg['role'] == 'assistant') {
+        geminiContents.add({
+          'role': 'model',
+          'parts': [{'text': msg['content']}]
+        });
+      }
+    }
+
+    // Add current message
+    geminiContents.add({
+      'role': 'user',
+      'parts': [{'text': message}]
+    });
 
     try {
       final response = await http.post(
         url,
         headers: {
-          'Authorization': 'Bearer ${AiConfig.deepseekApiKey}',
           'Content-Type': 'application/json',
         },
         body: jsonEncode({
-          'model': 'deepseek-chat',
-          'messages': messages,
-          'tools': _getTools(),
-          'tool_choice': 'auto',
+          'contents': geminiContents,
+          'tools': [
+            {
+              'functionDeclarations': _getGeminiFunctionDeclarations(),
+            }
+          ],
+          'generationConfig': {
+            'temperature': 0.7,
+            'maxOutputTokens': 2048,
+          }
         }),
       );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        final messageData = data['choices'][0]['message'];
+        final candidates = data['candidates'];
 
-        if (messageData['tool_calls'] != null) {
-          // Handle tool calls
-          return await _handleToolCalls(messageData['tool_calls'], messages);
+        if (candidates == null || candidates.isEmpty) {
+          return "Error: No response from AI";
         }
 
-        return messageData['content'];
+        final content = candidates[0]['content'];
+        final parts = content['parts'];
+
+        // Check for function calls
+        if (parts != null && parts.isNotEmpty) {
+          for (var part in parts) {
+            if (part['functionCall'] != null) {
+              // Handle function call
+              final functionCall = part['functionCall'];
+              final functionName = functionCall['name'];
+              final arguments = functionCall['args'] ?? {};
+
+              final result = await _executeFunctionCall(functionName, arguments);
+
+              // Return result directly for now (simplified)
+              return result;
+            } else if (part['text'] != null) {
+              return part['text'];
+            }
+          }
+        }
+
+        return "No valid response from AI";
       } else {
         return "Error: ${response.statusCode} - ${response.body}";
       }
@@ -96,168 +150,135 @@ Note: Selalu konfirmasi singkat sebelum melakukan aksi hapus/tambah/ubah data.
     }
   }
 
-  List<Map<String, dynamic>> _getTools() {
+  List<Map<String, dynamic>> _getGeminiFunctionDeclarations() {
     return [
       {
-        'type': 'function',
-        'function': {
-          'name': 'get_products',
-          'description': 'Mendapatkan daftar semua produk dan harganya.',
-          'parameters': {
-            'type': 'object',
-            'properties': {},
-          },
+        'name': 'get_products',
+        'description': 'Mendapatkan daftar semua produk dan harganya.',
+        'parameters': {
+          'type': 'object',
+          'properties': {},
         },
       },
       {
-        'type': 'function',
-        'function': {
-          'name': 'update_product',
-          'description': 'Mengupdate informasi produk seperti nama, deskripsi, harga, kategori, atau status promo.',
-          'parameters': {
-            'type': 'object',
-            'properties': {
-              'productId': {'type': 'string', 'description': 'ID produk'},
-              'name': {'type': 'string'},
-              'description': {'type': 'string'},
-              'price': {'type': 'number'},
-              'category': {'type': 'string', 'description': 'BEVERAGE_COFFEE, BEVERAGE_NON_COFFEE, FOOD, SNACK, OTHER'},
-              'isPromo': {'type': 'boolean'},
-              'promoDiscountPercent': {'type': 'number'},
-              'isFeatured': {'type': 'boolean'},
-            },
-            'required': ['productId'],
+        'name': 'update_product',
+        'description': 'Mengupdate informasi produk seperti nama, deskripsi, harga, kategori, atau status promo.',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'productId': {'type': 'string', 'description': 'ID produk'},
+            'name': {'type': 'string', 'description': 'Nama produk'},
+            'description': {'type': 'string', 'description': 'Deskripsi produk'},
+            'price': {'type': 'number', 'description': 'Harga produk'},
+            'category': {'type': 'string', 'description': 'BEVERAGE_COFFEE, BEVERAGE_NON_COFFEE, FOOD, SNACK, OTHER'},
+            'isPromo': {'type': 'boolean', 'description': 'Status promo'},
+            'promoDiscountPercent': {'type': 'number', 'description': 'Persentase diskon'},
+            'isFeatured': {'type': 'boolean', 'description': 'Status featured'},
           },
+          'required': ['productId'],
         },
       },
       {
-        'type': 'function',
-        'function': {
-          'name': 'update_stock_status',
-          'description': 'Mengubah status ketersediaan stok produk (Tersedia/Habis).',
-          'parameters': {
-            'type': 'object',
-            'properties': {
-              'productId': {'type': 'string', 'description': 'ID produk'},
-              'isActive': {'type': 'boolean', 'description': 'Set true untuk tersedia, false untuk habis'},
-            },
-            'required': ['productId', 'isActive'],
+        'name': 'update_stock_status',
+        'description': 'Mengubah status ketersediaan stok produk (Tersedia/Habis).',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'productId': {'type': 'string', 'description': 'ID produk'},
+            'isActive': {'type': 'boolean', 'description': 'Set true untuk tersedia, false untuk habis'},
           },
+          'required': ['productId', 'isActive'],
         },
       },
       {
-        'type': 'function',
-        'function': {
-          'name': 'update_stock_quantity',
-          'description': 'Mengupdate jumlah stok (quantity) produk secara spesifik.',
-          'parameters': {
-            'type': 'object',
-            'properties': {
-              'productId': {'type': 'string', 'description': 'ID produk'},
-              'stockQty': {'type': 'integer', 'description': 'Jumlah stok baru'},
-            },
-            'required': ['productId', 'stockQty'],
+        'name': 'update_stock_quantity',
+        'description': 'Mengupdate jumlah stok (quantity) produk secara spesifik.',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'productId': {'type': 'string', 'description': 'ID produk'},
+            'stockQty': {'type': 'integer', 'description': 'Jumlah stok baru'},
           },
+          'required': ['productId', 'stockQty'],
         },
       },
       {
-        'type': 'function',
-        'function': {
-          'name': 'create_product',
-          'description': 'Menambah menu baru ke dalam sistem.',
-          'parameters': {
-            'type': 'object',
-            'properties': {
-              'name': {'type': 'string', 'description': 'Nama menu'},
-              'description': {'type': 'string', 'description': 'Deskripsi menu'},
-              'price': {'type': 'number', 'description': 'Harga dasar'},
-              'category': {
-                'type': 'string', 
-                'description': 'Kategori: BEVERAGE_COFFEE, BEVERAGE_NON_COFFEE, FOOD, SNACK, OTHER'
-              },
-            },
-            'required': ['name', 'price', 'category'],
-          },
-        },
-      },
-      {
-        'type': 'function',
-        'function': {
-          'name': 'delete_product',
-          'description': 'Menghapus atau menonaktifkan menu dari daftar.',
-          'parameters': {
-            'type': 'object',
-            'properties': {
-              'productId': {'type': 'string', 'description': 'ID produk yang akan dihapus'},
-            },
-            'required': ['productId'],
-          },
-        },
-      },
-      {
-        'type': 'function',
-        'function': {
-          'name': 'get_today_sales',
-          'description': 'Mendapatkan ringkasan penjualan hari ini secara real-time.',
-          'parameters': {
-            'type': 'object',
-            'properties': {},
-          },
-        },
-      },
-      {
-        'type': 'function',
-        'function': {
-          'name': 'get_top_products',
-          'description': 'Mendapatkan daftar produk terlaris berdasarkan kuantitas dan pendapatan.',
-          'parameters': {
-            'type': 'object',
-            'properties': {
-              'year': {'type': 'integer', 'description': 'Tahun (opsional, default tahun ini)'},
-              'month': {'type': 'integer', 'description': 'Bulan 1-12 (opsional, default bulan ini)'},
-              'limit': {'type': 'integer', 'description': 'Jumlah produk (default 5)'},
+        'name': 'create_product',
+        'description': 'Menambah menu baru ke dalam sistem.',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'name': {'type': 'string', 'description': 'Nama menu'},
+            'description': {'type': 'string', 'description': 'Deskripsi menu'},
+            'price': {'type': 'number', 'description': 'Harga dasar'},
+            'category': {
+              'type': 'string',
+              'description': 'Kategori: BEVERAGE_COFFEE, BEVERAGE_NON_COFFEE, FOOD, SNACK, OTHER'
             },
           },
+          'required': ['name', 'price', 'category'],
         },
       },
       {
-        'type': 'function',
-        'function': {
-          'name': 'get_shift_analytics',
-          'description': 'Mendapatkan data analitik shift kerja (durasi, rata-rata pendapatan per shift, rekonsiliasi kas).',
-          'parameters': {
-            'type': 'object',
-            'properties': {
-              'year': {'type': 'integer'},
-              'month': {'type': 'integer'},
-            },
-            'required': ['year', 'month'],
+        'name': 'delete_product',
+        'description': 'Menghapus atau menonaktifkan menu dari daftar.',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'productId': {'type': 'string', 'description': 'ID produk yang akan dihapus'},
+          },
+          'required': ['productId'],
+        },
+      },
+      {
+        'name': 'get_today_sales',
+        'description': 'Mendapatkan ringkasan penjualan hari ini secara real-time.',
+        'parameters': {
+          'type': 'object',
+          'properties': {},
+        },
+      },
+      {
+        'name': 'get_top_products',
+        'description': 'Mendapatkan daftar produk terlaris berdasarkan kuantitas dan pendapatan.',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'year': {'type': 'integer', 'description': 'Tahun (opsional, default tahun ini)'},
+            'month': {'type': 'integer', 'description': 'Bulan 1-12 (opsional, default bulan ini)'},
+            'limit': {'type': 'integer', 'description': 'Jumlah produk (default 5)'},
           },
         },
       },
       {
-        'type': 'function',
-        'function': {
-          'name': 'get_monthly_analytics',
-          'description': 'Mendapatkan laporan performa bisnis bulanan lengkap.',
-          'parameters': {
-            'type': 'object',
-            'properties': {
-              'year': {'type': 'integer'},
-              'month': {'type': 'integer'},
-            },
-            'required': ['year', 'month'],
+        'name': 'get_shift_analytics',
+        'description': 'Mendapatkan data analitik shift kerja (durasi, rata-rata pendapatan per shift, rekonsiliasi kas).',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'year': {'type': 'integer', 'description': 'Tahun'},
+            'month': {'type': 'integer', 'description': 'Bulan'},
           },
+          'required': ['year', 'month'],
+        },
+      },
+      {
+        'name': 'get_monthly_analytics',
+        'description': 'Mendapatkan laporan performa bisnis bulanan lengkap.',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'year': {'type': 'integer', 'description': 'Tahun'},
+            'month': {'type': 'integer', 'description': 'Bulan'},
+          },
+          'required': ['year', 'month'],
         },
       },
     ];
   }
 
-  Future<String> _handleToolCalls(List<dynamic> toolCalls, List<Map<String, dynamic>> messages) async {
-    for (var toolCall in toolCalls) {
-      final functionName = toolCall['function']['name'];
-      final arguments = jsonDecode(toolCall['function']['arguments']);
-      
+  Future<String> _executeFunctionCall(String functionName, Map<String, dynamic> arguments) async {
+    try {
       dynamic functionResponse;
 
       if (functionName == 'get_products') {
@@ -269,6 +290,7 @@ Note: Selalu konfirmasi singkat sebelum melakukan aksi hapus/tambah/ubah data.
           'is_active': p.isActive,
           'category': p.category.name,
         }).toList();
+        return 'Daftar Produk:\n${products.map((p) => '- ${p.name}: Rp ${p.price.toStringAsFixed(0)} (${p.isActive ? "Tersedia" : "Habis"})').join('\n')}';
       } else if (functionName == 'update_product') {
         final categoryStr = arguments['category'];
         ProductCategory? category;
@@ -289,100 +311,86 @@ Note: Selalu konfirmasi singkat sebelum melakukan aksi hapus/tambah/ubah data.
           promoDiscountPercent: arguments['promoDiscountPercent']?.toDouble(),
           isFeatured: arguments['isFeatured'],
         );
-        functionResponse = {'status': 'success', 'message': 'Produk diperbarui'};
+        return '✅ Produk berhasil diperbarui';
       } else if (functionName == 'update_stock_status') {
         await _productRepo.updateProduct(
           id: arguments['productId'],
           isActive: arguments['isActive'],
         );
-        functionResponse = {'status': 'success', 'message': 'Status stok diperbarui'};
+        return '✅ Status stok berhasil diperbarui';
       } else if (functionName == 'update_stock_quantity') {
         await _productRepo.updateProduct(
           id: arguments['productId'],
           stockQty: arguments['stockQty'],
         );
-        functionResponse = {'status': 'success', 'message': 'Jumlah stok diperbarui'};
+        return '✅ Jumlah stok berhasil diperbarui';
       } else if (functionName == 'create_product') {
         final categoryStr = arguments['category'];
         final category = ProductCategory.values.firstWhere(
           (e) => e.name == categoryStr,
           orElse: () => ProductCategory.OTHER,
         );
-        
+
         await _productRepo.createProduct(
           name: arguments['name'],
           description: arguments['description'] ?? '',
           price: arguments['price'].toDouble(),
           category: category,
         );
-        functionResponse = {'status': 'success', 'message': 'Produk berhasil ditambahkan'};
+        return '✅ Produk "${arguments['name']}" berhasil ditambahkan';
       } else if (functionName == 'delete_product') {
         await _productRepo.deleteProduct(arguments['productId']);
-        functionResponse = {'status': 'success', 'message': 'Produk berhasil dihapus'};
+        return '✅ Produk berhasil dihapus';
       } else if (functionName == 'get_today_sales') {
         final summary = await _orderRepo.getTodaySalesSummary();
-        functionResponse = summary;
+        return '''
+📊 Ringkasan Penjualan Hari Ini:
+- Total Penjualan: Rp ${(summary['totalSales'] ?? 0).toStringAsFixed(0)}
+- Total Order: ${summary['totalOrders'] ?? 0}
+- Order via App: ${summary['appOrders'] ?? 0}
+- Order via POS: ${summary['posOrders'] ?? 0}
+''';
       } else if (functionName == 'get_top_products') {
         final now = DateTime.now();
         final year = arguments['year'] ?? now.year;
         final month = arguments['month'] ?? now.month;
         final limit = arguments['limit'] ?? 5;
-        
+
         final topProducts = await _orderRepo.getTopProducts(year, month, limit: limit);
-        // Sort and limit
         topProducts.sort((a, b) => (b['total_quantity'] as num).compareTo(a['total_quantity'] as num));
-        
-        functionResponse = topProducts.take(limit).map((p) => {
-          'name': p['product_name'],
-          'total_quantity': p['total_quantity'],
-          'total_revenue': p['total_revenue'],
-          'category': p['category'],
-        }).toList();
+
+        final result = topProducts.take(limit).map((p) =>
+          '${p['product_name']}: ${p['total_quantity']} terjual, Rp ${(p['total_revenue'] as num).toStringAsFixed(0)}'
+        ).join('\n');
+
+        return '🏆 Top $limit Produk Terlaris:\n$result';
       } else if (functionName == 'get_shift_analytics') {
         final analytics = await _shiftRepo.getMonthlyShiftAnalytics(
           arguments['year'],
           arguments['month'],
         );
-        functionResponse = analytics;
+        return '''
+📅 Analitik Shift:
+- Total Shift: ${analytics['totalShifts'] ?? 0}
+- Durasi Rata-rata: ${analytics['avgDuration'] ?? 0} jam
+- Pendapatan per Shift: Rp ${(analytics['avgRevenue'] ?? 0).toStringAsFixed(0)}
+''';
       } else if (functionName == 'get_monthly_analytics') {
         final year = arguments['year'];
         final month = arguments['month'];
-        
+
         final analytics = await _orderRepo.getMonthlyAnalytics(year, month);
-        functionResponse = analytics; // Return full map for better AI context
+        return '''
+📈 Laporan Bulanan:
+- Total Pendapatan: Rp ${(analytics['totalRevenue'] ?? 0).toStringAsFixed(0)}
+- Total Order: ${analytics['totalOrders'] ?? 0}
+- AOV: Rp ${(analytics['avgOrderValue'] ?? 0).toStringAsFixed(0)}
+''';
       }
 
-      messages.add({
-        'role': 'assistant',
-        'tool_calls': [toolCall],
-      });
-      messages.add({
-        'role': 'tool',
-        'tool_call_id': toolCall['id'],
-        'name': functionName,
-        'content': jsonEncode(functionResponse),
-      });
-    }
-
-    // Call AI again with tool results
-    final url = Uri.parse('${AiConfig.deepseekBaseUrl}/chat/completions');
-    final response = await http.post(
-      url,
-      headers: {
-        'Authorization': 'Bearer ${AiConfig.deepseekApiKey}',
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode({
-        'model': 'deepseek-chat',
-        'messages': messages,
-      }),
-    );
-
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      return data['choices'][0]['message']['content'];
-    } else {
-      return "Error after tool execution: ${response.body}";
+      return 'Function executed but no response generated';
+    } catch (e) {
+      return '❌ Error: $e';
     }
   }
 }

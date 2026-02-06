@@ -1,4 +1,5 @@
 class AiConfig {
-  static const String deepseekApiKey = 'sk-27834e695d7b42319cf7bb88e911a295';
-  static const String deepseekBaseUrl = 'https://api.deepseek.com/v1';
+  static const String geminiApiKey = 'AIzaSyDiR01Gcxue8qle62_f95Nk_MBddr1QtuE';
+  static const String geminiBaseUrl = 'https://generativelanguage.googleapis.com/v1beta';
+  static const String geminiModel = 'gemini-1.5-flash'; // atau 'gemini-1.5-pro' untuk model lebih canggih
 }
