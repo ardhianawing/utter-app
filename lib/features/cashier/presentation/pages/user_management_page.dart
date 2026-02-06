@@ -87,10 +87,14 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> {
                 TextField(
                   controller: passwordController,
                   obscureText: true,
+                  maxLength: 6,
                   decoration: InputDecoration(
                     labelText: isEdit ? 'Password Baru (kosongkan jika tidak diubah)' : 'Password',
                     border: const OutlineInputBorder(),
+                    helperText: 'Maksimal 6 karakter (angka)',
+                    counterText: '',
                   ),
+                  keyboardType: TextInputType.number,
                 ),
                 const SizedBox(height: 12),
                 TextField(
@@ -149,6 +153,16 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text('Password wajib diisi untuk user baru'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                  return;
+                }
+
+                if (password.isNotEmpty && password.length != 6) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Password harus tepat 6 karakter'),
                       backgroundColor: Colors.red,
                     ),
                   );
