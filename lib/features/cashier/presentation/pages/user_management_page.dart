@@ -155,7 +155,15 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> {
                   return;
                 }
 
-                Navigator.pop(context);
+                // Show loading indicator
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('⏳ Processing...'),
+                      duration: Duration(seconds: 1),
+                    ),
+                  );
+                }
 
                 try {
                   // Convert role to lowercase for database
@@ -182,15 +190,6 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> {
                         .select();
 
                     print('Update response: $response'); // Debug log
-
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('✅ User berhasil diupdate'),
-                          backgroundColor: Colors.green,
-                        ),
-                      );
-                    }
                   } else {
                     // Create new user
                     final response = await Supabase.instance.client.from('profiles').insert({
@@ -203,25 +202,30 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> {
                     }).select();
 
                     print('Insert response: $response'); // Debug log
-
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('✅ User baru berhasil ditambahkan'),
-                          backgroundColor: Colors.green,
-                        ),
-                      );
-                    }
                   }
 
-                  await _loadUsers(); // Make sure this completes
+                  await _loadUsers(); // Reload data
+
+                  // Close dialog AFTER success
+                  if (mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(isEdit ? '✅ User berhasil diupdate' : '✅ User baru berhasil ditambahkan'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                  }
                 } catch (e) {
                   print('Error in user operation: $e'); // Debug log
+
+                  // Show error but DON'T close dialog
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text('Error: $e'),
+                        content: Text('❌ Error: $e'),
                         backgroundColor: Colors.red,
+                        duration: const Duration(seconds: 5),
                       ),
                     );
                   }
