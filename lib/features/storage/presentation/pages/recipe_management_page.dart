@@ -5,7 +5,8 @@ import '../../../shared/models/models.dart';
 import '../../../cashier/data/providers/product_provider.dart';
 import '../../data/providers/storage_provider.dart';
 import '../../domain/models/storage_models.dart';
-import '../widgets/recipe_editor_widget.dart';
+import '../widgets/recipe_editor_sheet.dart';
+import '../widgets/simulation_sheet.dart';
 
 class RecipeManagementPage extends ConsumerStatefulWidget {
   const RecipeManagementPage({super.key});
@@ -22,282 +23,268 @@ class _RecipeManagementPageState extends ConsumerState<RecipeManagementPage> {
   Widget build(BuildContext context) {
     final productsAsync = ref.watch(productNotifierProvider);
     final hppSummaryAsync = ref.watch(productHPPSummaryProvider);
+    final ingredientsAsync = ref.watch(ingredientsStreamProvider);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Recipe Management'),
-        backgroundColor: AppColors.successGreen,
+        title: const Text(
+          'Resep & HPP',
+          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 17, letterSpacing: -0.3),
+        ),
+        backgroundColor: AppColors.primaryBlack,
         foregroundColor: Colors.white,
+        automaticallyImplyLeading: false,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () {
-              ref.invalidate(productNotifierProvider);
-              ref.invalidate(productHPPSummaryProvider);
-            },
-          ),
+          // Simulation button
+          ingredientsAsync.whenOrNull(
+            data: (ingredients) => productsAsync.whenOrNull(
+              data: (products) => TextButton.icon(
+                onPressed: () => _showSimulation(context, products, ingredients),
+                icon: const Icon(Icons.science_rounded, size: 16, color: Colors.white),
+                label: const Text(
+                  'Simulasi',
+                  style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
+                ),
+                style: TextButton.styleFrom(
+                  backgroundColor: AppColors.infoBlue,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+            ),
+          ) ?? const SizedBox.shrink(),
+          const SizedBox(width: 12),
         ],
       ),
-      body: Column(
-        children: [
-          // Search Bar
-          Padding(
-            padding: const EdgeInsets.all(16),
+      body: productsAsync.when(
+        data: (products) => _buildBody(context, ref, products, hppSummaryAsync, ingredientsAsync),
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(child: Text('Error: $e')),
+      ),
+    );
+  }
+
+  Widget _buildBody(
+    BuildContext context,
+    WidgetRef ref,
+    List<Product> products,
+    AsyncValue<List<ProductHPP>> hppAsync,
+    AsyncValue<List<Ingredient>> ingredientsAsync,
+  ) {
+    // Filter products
+    var filtered = products.where((p) => p.isActive).toList();
+    if (_searchQuery.isNotEmpty) {
+      filtered = filtered.where((p) => p.name.toLowerCase().contains(_searchQuery.toLowerCase())).toList();
+    }
+    if (_selectedCategory != null) {
+      filtered = filtered.where((p) => p.category == _selectedCategory).toList();
+    }
+
+    // Build HPP map
+    final hppMap = <String, ProductHPP>{};
+    hppAsync.whenData((list) {
+      for (final hpp in list) {
+        hppMap[hpp.productId] = hpp;
+      }
+    });
+
+    final categories = products.where((p) => p.isActive).map((p) => p.category).toSet().toList();
+
+    return Column(
+      children: [
+        // Search bar
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF9FAFB),
+              borderRadius: BorderRadius.circular(12),
+            ),
             child: TextField(
               decoration: InputDecoration(
-                hintText: 'Search products...',
-                prefixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                filled: true,
-                fillColor: Colors.grey[100],
+                hintText: 'Cari produk...',
+                hintStyle: TextStyle(color: Colors.grey[400], fontSize: 15),
+                prefixIcon: Icon(Icons.search, color: Colors.grey[400]),
+                border: InputBorder.none,
               ),
-              onChanged: (value) => setState(() => _searchQuery = value),
+              onChanged: (v) => setState(() => _searchQuery = v),
             ),
           ),
+        ),
 
-          // Category Filter
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: [
-                _buildCategoryChip(null, 'All'),
-                ...ProductCategory.values.map((category) =>
-                    _buildCategoryChip(category, category.displayName)),
-              ],
-            ),
+        // Category filter
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            children: [
+              _buildCategoryChip(null, 'All'),
+              ...categories.map((cat) => _buildCategoryChip(cat, cat.displayName)),
+            ],
           ),
+        ),
+        const SizedBox(height: 16),
 
-          const SizedBox(height: 16),
-
-          // Product List with HPP
-          Expanded(
-            child: productsAsync.when(
-              data: (products) {
-                // Filter products
-                var filtered = products;
-                if (_searchQuery.isNotEmpty) {
-                  filtered = filtered
-                      .where((p) => p.name.toLowerCase().contains(_searchQuery.toLowerCase()))
-                      .toList();
-                }
-                if (_selectedCategory != null) {
-                  filtered = filtered.where((p) => p.category == _selectedCategory).toList();
-                }
-
-                if (filtered.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.receipt_long_outlined, size: 64, color: Colors.grey[400]),
-                        const SizedBox(height: 16),
-                        Text(
-                          'No products found',
-                          style: TextStyle(color: Colors.grey[600], fontSize: 16),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
-                return hppSummaryAsync.when(
-                  data: (hppList) => ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: filtered.length,
-                    itemBuilder: (context, index) {
-                      final product = filtered[index];
-                      final hpp = hppList.where((h) => h.productId == product.id).firstOrNull;
-                      return _buildProductCard(context, product, hpp);
-                    },
+        // Product list
+        Expanded(
+          child: filtered.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.receipt_long_outlined, size: 64, color: Colors.grey[300]),
+                      const SizedBox(height: 16),
+                      Text('Tidak ada produk', style: TextStyle(color: Colors.grey[500])),
+                    ],
                   ),
-                  loading: () => ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: filtered.length,
-                    itemBuilder: (context, index) {
-                      final product = filtered[index];
-                      return _buildProductCard(context, product, null);
-                    },
-                  ),
-                  error: (_, __) => ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: filtered.length,
-                    itemBuilder: (context, index) {
-                      final product = filtered[index];
-                      return _buildProductCard(context, product, null);
-                    },
-                  ),
-                );
-              },
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, _) => Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.error_outline, size: 64, color: Colors.red),
-                    const SizedBox(height: 16),
-                    Text('Error: $error', textAlign: TextAlign.center),
-                    const SizedBox(height: 16),
-                    ElevatedButton(
-                      onPressed: () => ref.invalidate(productNotifierProvider),
-                      child: const Text('Retry'),
-                    ),
-                  ],
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                  itemCount: filtered.length,
+                  itemBuilder: (context, index) {
+                    final product = filtered[index];
+                    final hpp = hppMap[product.id];
+                    return _buildProductCard(context, ref, product, hpp, ingredientsAsync);
+                  },
                 ),
-              ),
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
   Widget _buildCategoryChip(ProductCategory? category, String label) {
-    final isSelected = _selectedCategory == category;
+    final selected = _selectedCategory == category;
     return Padding(
       padding: const EdgeInsets.only(right: 8),
-      child: FilterChip(
+      child: ChoiceChip(
         label: Text(label),
-        selected: isSelected,
+        selected: selected,
         onSelected: (_) => setState(() => _selectedCategory = category),
-        selectedColor: AppColors.successGreen.withOpacity(0.2),
-        checkmarkColor: AppColors.successGreen,
+        selectedColor: AppColors.primaryBlack,
+        labelStyle: TextStyle(
+          color: selected ? Colors.white : AppColors.textSecondary,
+          fontWeight: FontWeight.w600,
+          fontSize: 13,
+        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        side: BorderSide(color: selected ? AppColors.primaryBlack : const Color(0xFFE5E7EB)),
       ),
     );
   }
 
-  Widget _buildProductCard(BuildContext context, Product product, ProductHPP? hpp) {
-    final hasRecipe = hpp != null && hpp.hpp > 0;
+  Widget _buildProductCard(
+    BuildContext context,
+    WidgetRef ref,
+    Product product,
+    ProductHPP? hppData,
+    AsyncValue<List<Ingredient>> ingredientsAsync,
+  ) {
+    final hpp = hppData?.hpp ?? product.hpp ?? 0;
+    final hasRecipe = hppData != null && hppData.recipes.isNotEmpty || (product.hpp != null && product.hpp! > 0);
+    final margin = product.price > 0 ? ((product.price - hpp) / product.price) * 100 : 0.0;
+    final marginColor = _getMarginColor(margin);
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
       child: InkWell(
-        onTap: () => _showRecipeEditor(context, product),
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
+        onTap: () => _showRecipeEditor(context, ref, product, ingredientsAsync),
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
           padding: const EdgeInsets.all(16),
-          child: Row(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 3, offset: const Offset(0, 1)),
+            ],
+            border: Border(left: BorderSide(color: hasRecipe ? marginColor : const Color(0xFFD1D5DB), width: 3)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Product Image
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: product.imageUrl != null && product.imageUrl!.isNotEmpty
-                    ? Image.network(
-                        product.imageUrl!,
-                        width: 60,
-                        height: 60,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => _buildPlaceholderImage(),
-                      )
-                    : _buildPlaceholderImage(),
-              ),
-              const SizedBox(width: 16),
-
-              // Product Info
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      product.name,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      product.category.displayName,
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 12,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
+              // Product header
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Selling Price
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.grey[200],
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            'Rp ${product.price.toStringAsFixed(0)}',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w500,
-                              fontSize: 12,
-                            ),
-                          ),
+                        Text(product.name, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${product.category.displayName}${hasRecipe ? " • ${hppData?.recipes.length ?? 0} bahan" : ""}',
+                          style: TextStyle(fontSize: 12, color: Colors.grey[400]),
                         ),
-                        const SizedBox(width: 8),
-
-                        // HPP
-                        if (hasRecipe) ...[
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: AppColors.infoBlue.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              'HPP: ${hpp!.hppDisplay}',
-                              style: const TextStyle(
-                                color: AppColors.infoBlue,
-                                fontWeight: FontWeight.w500,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-
-                          // Profit Margin
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: hpp.isProfitable
-                                  ? AppColors.successGreen.withOpacity(0.1)
-                                  : AppColors.errorRed.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              hpp.profitPercentDisplay,
-                              style: TextStyle(
-                                color: hpp.isProfitable
-                                    ? AppColors.successGreen
-                                    : AppColors.errorRed,
-                                fontWeight: FontWeight.w500,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ),
-                        ] else
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: AppColors.warningYellow.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: const Text(
-                              'No Recipe',
-                              style: TextStyle(
-                                color: AppColors.warningYellow,
-                                fontWeight: FontWeight.w500,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ),
                       ],
                     ),
-                  ],
-                ),
+                  ),
+                  Text(
+                    _formatRp(product.price),
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                  ),
+                ],
               ),
 
-              // Arrow
-              const Icon(Icons.chevron_right, color: AppColors.textSecondary),
+              // HPP info (if has recipe)
+              if (hasRecipe && hpp > 0) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.only(top: 12),
+                  decoration: const BoxDecoration(
+                    border: Border(top: BorderSide(color: Color(0xFFF3F4F6), style: BorderStyle.solid)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Text('HPP ', style: TextStyle(fontSize: 12, color: Colors.grey[500])),
+                          Text(_formatRp(hpp), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                          const SizedBox(width: 16),
+                          Text('Profit ', style: TextStyle(fontSize: 12, color: Colors.grey[500])),
+                          Text(
+                            _formatRp(product.price - hpp),
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: marginColor),
+                          ),
+                        ],
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: marginColor.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          '${margin.toStringAsFixed(0)}%',
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: marginColor),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+
+              // No recipe warning
+              if (!hasRecipe || hpp <= 0) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.only(top: 12),
+                  decoration: const BoxDecoration(
+                    border: Border(top: BorderSide(color: Color(0xFFF3F4F6))),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.warning_amber_rounded, size: 14, color: AppColors.warningYellow),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Tap untuk tambah resep',
+                        style: TextStyle(fontSize: 12, color: AppColors.warningYellow, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -305,36 +292,34 @@ class _RecipeManagementPageState extends ConsumerState<RecipeManagementPage> {
     );
   }
 
-  Widget _buildPlaceholderImage() {
-    return Container(
-      width: 60,
-      height: 60,
-      color: Colors.grey[300],
-      child: const Icon(Icons.fastfood, color: Colors.grey),
-    );
+  void _showRecipeEditor(BuildContext context, WidgetRef ref, Product product, AsyncValue<List<Ingredient>> ingredientsAsync) {
+    ingredientsAsync.whenData((ingredients) {
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (context) => RecipeEditorSheet(product: product, ingredients: ingredients),
+      );
+    });
   }
 
-  void _showRecipeEditor(BuildContext context, Product product) {
+  void _showSimulation(BuildContext context, List<Product> products, List<Ingredient> ingredients) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.9,
-        minChildSize: 0.5,
-        maxChildSize: 0.95,
-        expand: false,
-        builder: (context, scrollController) => RecipeEditorWidget(
-          product: product,
-          scrollController: scrollController,
-          onSaved: () {
-            ref.invalidate(productHPPSummaryProvider);
-            ref.invalidate(productRecipesProvider(product.id));
-          },
-        ),
-      ),
+      backgroundColor: Colors.transparent,
+      builder: (context) => SimulationSheet(products: products, ingredients: ingredients),
     );
+  }
+
+  Color _getMarginColor(double pct) {
+    if (pct >= 70) return AppColors.successGreen;
+    if (pct >= 50) return AppColors.infoBlue;
+    if (pct >= 30) return AppColors.warningYellow;
+    return AppColors.errorRed;
+  }
+
+  String _formatRp(double value) {
+    return 'Rp ${value.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.')}';
   }
 }

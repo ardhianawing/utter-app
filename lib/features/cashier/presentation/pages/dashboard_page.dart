@@ -18,7 +18,7 @@ import 'shift_history_page.dart';
 import 'product_sales_report_page.dart';
 import 'monthly_analytics_page.dart';
 import '../widgets/product_category_section.dart';
-import '../../../storage/presentation/pages/storage_dashboard_page.dart';
+import '../../../storage/presentation/pages/storage_main_page.dart';
 import '../../../../core/utils/print_service.dart';
 import '../widgets/product_selection_dialog.dart';
 import '../widgets/ai_assistant_drawer.dart';
@@ -1030,7 +1030,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => const StorageDashboardPage(),
+                      builder: (context) => const StorageMainPage(),
                     ),
                   );
                 }

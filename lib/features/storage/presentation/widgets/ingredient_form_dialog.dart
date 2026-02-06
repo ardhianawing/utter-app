@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../domain/models/storage_models.dart';
 
@@ -28,18 +29,50 @@ class _IngredientFormDialogState extends State<IngredientFormDialog> {
 
   bool get isEditing => widget.ingredient != null;
 
+  String _formatNumber(double? value) {
+    if (value == null) return '';
+    if (value == value.truncateToDouble()) {
+      return value.toStringAsFixed(0);
+    }
+    return value.toStringAsFixed(2);
+  }
+
+  String _formatRibuan(double value) {
+    return value.toStringAsFixed(0).replaceAllMapped(
+      RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
+      (m) => '${m[1]}.',
+    );
+  }
+
+  String _getUnitLabel(IngredientUnit unit) {
+    switch (unit) {
+      case IngredientUnit.gram:
+        return 'Gram (g)';
+      case IngredientUnit.kg:
+        return 'Kilogram (kg)';
+      case IngredientUnit.ml:
+        return 'Mililiter (ml)';
+      case IngredientUnit.liter:
+        return 'Liter (L)';
+      case IngredientUnit.pcs:
+        return 'Pieces (pcs)';
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.ingredient?.name ?? '');
     _currentStockController = TextEditingController(
-      text: widget.ingredient?.currentStock.toStringAsFixed(2) ?? '',
+      text: _formatNumber(widget.ingredient?.currentStock),
     );
     _costPerUnitController = TextEditingController(
-      text: widget.ingredient?.costPerUnit.toStringAsFixed(2) ?? '',
+      text: widget.ingredient?.costPerUnit != null && widget.ingredient!.costPerUnit > 0
+        ? _formatRibuan(widget.ingredient!.costPerUnit)
+        : '',
     );
     _minStockController = TextEditingController(
-      text: widget.ingredient?.minStock.toStringAsFixed(2) ?? '',
+      text: _formatNumber(widget.ingredient?.minStock),
     );
     _supplierNameController = TextEditingController(
       text: widget.ingredient?.supplierName ?? '',
@@ -79,7 +112,7 @@ class _IngredientFormDialogState extends State<IngredientFormDialog> {
                     ),
                     const SizedBox(width: 12),
                     Text(
-                      isEditing ? 'Edit Ingredient' : 'Add Ingredient',
+                      isEditing ? 'Edit Bahan' : 'Tambah Bahan',
                       style: const TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
@@ -93,15 +126,15 @@ class _IngredientFormDialogState extends State<IngredientFormDialog> {
                 TextFormField(
                   controller: _nameController,
                   decoration: const InputDecoration(
-                    labelText: 'Name *',
-                    hintText: 'e.g., Arabica Coffee Beans',
+                    labelText: 'Nama Bahan *',
+                    hintText: 'cth: Biji Kopi Arabika',
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Icons.label),
                   ),
                   textCapitalization: TextCapitalization.words,
                   validator: (value) {
                     if (value == null || value.isEmpty) {
-                      return 'Please enter ingredient name';
+                      return 'Masukkan nama bahan';
                     }
                     return null;
                   },
@@ -112,14 +145,14 @@ class _IngredientFormDialogState extends State<IngredientFormDialog> {
                 DropdownButtonFormField<IngredientUnit>(
                   value: _selectedUnit,
                   decoration: const InputDecoration(
-                    labelText: 'Unit *',
+                    labelText: 'Satuan *',
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Icons.straighten),
                   ),
                   items: IngredientUnit.values.map((unit) {
                     return DropdownMenuItem(
                       value: unit,
-                      child: Text(unit.displayName),
+                      child: Text(_getUnitLabel(unit)),
                     );
                   }).toList(),
                   onChanged: (value) {
@@ -137,7 +170,7 @@ class _IngredientFormDialogState extends State<IngredientFormDialog> {
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
                     decoration: InputDecoration(
-                      labelText: 'Initial Stock',
+                      labelText: 'Stok Awal',
                       hintText: '0',
                       border: const OutlineInputBorder(),
                       prefixIcon: const Icon(Icons.inventory),
@@ -147,7 +180,7 @@ class _IngredientFormDialogState extends State<IngredientFormDialog> {
                       if (value != null && value.isNotEmpty) {
                         final num = double.tryParse(value);
                         if (num == null || num < 0) {
-                          return 'Please enter a valid number';
+                          return 'Masukkan angka yang valid';
                         }
                       }
                       return null;
@@ -158,20 +191,35 @@ class _IngredientFormDialogState extends State<IngredientFormDialog> {
                 // Cost per Unit
                 TextFormField(
                   controller: _costPerUnitController,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   decoration: InputDecoration(
-                    labelText: 'Cost per Unit (Rp)',
-                    hintText: '0',
+                    labelText: 'Harga per ${_selectedUnit.displayName} (Rp)',
+                    hintText: '25.000',
                     border: const OutlineInputBorder(),
-                    prefixIcon: const Icon(Icons.attach_money),
-                    suffixText: 'per ${_selectedUnit.displayName}',
+                    prefixIcon: const Icon(Icons.payments_outlined),
+                    prefixText: 'Rp  ',
                   ),
+                  onChanged: (value) {
+                    if (value.isEmpty) return;
+                    final cleanValue = value.replaceAll('.', '');
+                    final number = double.tryParse(cleanValue);
+                    if (number != null) {
+                      final formatted = _formatRibuan(number);
+                      if (formatted != value) {
+                        _costPerUnitController.value = TextEditingValue(
+                          text: formatted,
+                          selection: TextSelection.collapsed(offset: formatted.length),
+                        );
+                      }
+                    }
+                  },
                   validator: (value) {
                     if (value != null && value.isNotEmpty) {
-                      final num = double.tryParse(value);
+                      final cleanValue = value.replaceAll('.', '');
+                      final num = double.tryParse(cleanValue);
                       if (num == null || num < 0) {
-                        return 'Please enter a valid cost';
+                        return 'Masukkan harga yang valid';
                       }
                     }
                     return null;
@@ -185,8 +233,8 @@ class _IngredientFormDialogState extends State<IngredientFormDialog> {
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
                   decoration: InputDecoration(
-                    labelText: 'Minimum Stock (Alert Threshold)',
-                    hintText: '0',
+                    labelText: 'Stok Minimum (Alert)',
+                    hintText: '10',
                     border: const OutlineInputBorder(),
                     prefixIcon: const Icon(Icons.warning_amber),
                     suffixText: _selectedUnit.displayName,
@@ -195,7 +243,7 @@ class _IngredientFormDialogState extends State<IngredientFormDialog> {
                     if (value != null && value.isNotEmpty) {
                       final num = double.tryParse(value);
                       if (num == null || num < 0) {
-                        return 'Please enter a valid number';
+                        return 'Masukkan angka yang valid';
                       }
                     }
                     return null;
@@ -207,8 +255,8 @@ class _IngredientFormDialogState extends State<IngredientFormDialog> {
                 TextFormField(
                   controller: _supplierNameController,
                   decoration: const InputDecoration(
-                    labelText: 'Supplier Name (Optional)',
-                    hintText: 'e.g., PT Kopi Nusantara',
+                    labelText: 'Nama Supplier (Opsional)',
+                    hintText: 'cth: PT Kopi Nusantara',
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Icons.business),
                   ),
@@ -222,7 +270,7 @@ class _IngredientFormDialogState extends State<IngredientFormDialog> {
                   children: [
                     TextButton(
                       onPressed: _isLoading ? null : () => Navigator.pop(context),
-                      child: const Text('Cancel'),
+                      child: const Text('Batal'),
                     ),
                     const SizedBox(width: 12),
                     ElevatedButton(
@@ -240,7 +288,7 @@ class _IngredientFormDialogState extends State<IngredientFormDialog> {
                                 color: Colors.white,
                               ),
                             )
-                          : Text(isEditing ? 'Save' : 'Add'),
+                          : Text(isEditing ? 'Simpan' : 'Tambah'),
                     ),
                   ],
                 ),
@@ -264,7 +312,7 @@ class _IngredientFormDialogState extends State<IngredientFormDialog> {
           ? double.parse(_currentStockController.text)
           : 0.0,
       'costPerUnit': _costPerUnitController.text.isNotEmpty
-          ? double.parse(_costPerUnitController.text)
+          ? double.parse(_costPerUnitController.text.replaceAll('.', ''))
           : 0.0,
       'minStock': _minStockController.text.isNotEmpty
           ? double.parse(_minStockController.text)

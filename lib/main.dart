@@ -12,7 +12,7 @@ import 'features/cashier/data/providers/auth_provider.dart';
 import 'features/customer/presentation/pages/menu_page.dart';
 import 'features/customer/presentation/pages/qr_scanner_page.dart';
 import 'features/cashier/presentation/pages/kitchen_display_page.dart';
-import 'features/storage/presentation/pages/storage_dashboard_page.dart';
+import 'features/storage/presentation/pages/storage_main_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -110,7 +110,7 @@ class UtterApp extends ConsumerWidget {
         '/menu': (context) => const MenuPage(),
         '/login': (context) => const StaffLoginPage(),
         '/dashboard': (context) => const DashboardPage(),
-        '/storage': (context) => const StorageDashboardPage(),
+        '/storage': (context) => const StorageMainPage(),
       },
     );
   }

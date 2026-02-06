@@ -132,10 +132,21 @@ class Ingredient {
   }
 
   /// Format stock display with unit
-  String get stockDisplay => '${currentStock.toStringAsFixed(2)} ${unit.displayName}';
+  String get stockDisplay {
+    final stockStr = currentStock == currentStock.roundToDouble()
+        ? currentStock.toStringAsFixed(0)
+        : currentStock.toStringAsFixed(1);
+    return '$stockStr ${unit.displayName}';
+  }
 
   /// Format cost display
-  String get costDisplay => 'Rp ${costPerUnit.toStringAsFixed(2)}/${unit.displayName}';
+  String get costDisplay {
+    final formatted = costPerUnit.toStringAsFixed(0).replaceAllMapped(
+      RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
+      (m) => '${m[1]}.',
+    );
+    return 'Rp $formatted/${unit.displayName}';
+  }
 
   factory Ingredient.fromJson(Map<String, dynamic> json) {
     return Ingredient(
