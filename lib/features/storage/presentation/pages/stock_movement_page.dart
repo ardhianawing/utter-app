@@ -154,7 +154,6 @@ class _StockMovementPageState extends ConsumerState<StockMovementPage> {
             ),
           ),
         ],
-      ),
     );
 
     if (widget.embedded) {
