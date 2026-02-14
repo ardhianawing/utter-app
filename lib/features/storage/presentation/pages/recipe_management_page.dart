@@ -9,7 +9,8 @@ import '../widgets/recipe_editor_sheet.dart';
 import '../widgets/simulation_sheet.dart';
 
 class RecipeManagementPage extends ConsumerStatefulWidget {
-  const RecipeManagementPage({super.key});
+  final bool embedded;
+  const RecipeManagementPage({super.key, this.embedded = false});
 
   @override
   ConsumerState<RecipeManagementPage> createState() => _RecipeManagementPageState();
@@ -24,6 +25,16 @@ class _RecipeManagementPageState extends ConsumerState<RecipeManagementPage> {
     final productsAsync = ref.watch(productNotifierProvider);
     final hppSummaryAsync = ref.watch(productHPPSummaryProvider);
     final ingredientsAsync = ref.watch(ingredientsStreamProvider);
+
+    final body = productsAsync.when(
+      data: (products) => _buildBody(context, ref, products, hppSummaryAsync, ingredientsAsync),
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Center(child: Text('Error: $e')),
+    );
+
+    if (widget.embedded) {
+      return body;
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -56,11 +67,7 @@ class _RecipeManagementPageState extends ConsumerState<RecipeManagementPage> {
           const SizedBox(width: 12),
         ],
       ),
-      body: productsAsync.when(
-        data: (products) => _buildBody(context, ref, products, hppSummaryAsync, ingredientsAsync),
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e')),
-      ),
+      body: body,
     );
   }
 

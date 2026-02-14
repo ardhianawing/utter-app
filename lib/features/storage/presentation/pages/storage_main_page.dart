@@ -2,11 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/app_colors.dart';
 import 'storage_dashboard_tab.dart';
-import 'ingredient_list_page.dart';
-import 'recipe_management_page.dart';
-import 'stock_movement_page.dart';
+import 'storage_other_tab.dart';
 
-/// Main entry point for Storage module with bottom navigation
+/// Main entry point for Storage module with bottom navigation (2 tabs)
 class StorageMainPage extends ConsumerStatefulWidget {
   const StorageMainPage({super.key});
 
@@ -19,9 +17,7 @@ class _StorageMainPageState extends ConsumerState<StorageMainPage> {
 
   final List<Widget> _pages = const [
     StorageDashboardTab(),
-    IngredientListPage(),
-    RecipeManagementPage(),
-    StockMovementPage(),
+    StorageOtherTab(),
   ];
 
   @override
@@ -56,20 +52,12 @@ class _StorageMainPageState extends ConsumerState<StorageMainPage> {
           ),
           items: const [
             BottomNavigationBarItem(
-              icon: Icon(Icons.dashboard_rounded),
-              label: 'Dashboard',
-            ),
-            BottomNavigationBarItem(
               icon: Icon(Icons.inventory_2_rounded),
-              label: 'Bahan',
+              label: 'Stok',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.receipt_long_rounded),
-              label: 'Resep',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.history_rounded),
-              label: 'Riwayat',
+              icon: Icon(Icons.more_horiz_rounded),
+              label: 'Lainnya',
             ),
           ],
         ),

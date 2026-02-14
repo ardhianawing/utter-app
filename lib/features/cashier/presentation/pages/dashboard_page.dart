@@ -1158,7 +1158,21 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             ),
             const SizedBox(height: 32),
 
-            // Quick Actions Grid
+            // ── Section: Kelola (Management) ──
+            Text(
+              'Kelola',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: Colors.grey[800],
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Pengaturan & manajemen operasional',
+              style: TextStyle(fontSize: 13, color: Colors.grey[500]),
+            ),
+            const SizedBox(height: 16),
             Wrap(
               spacing: 16,
               runSpacing: 16,
@@ -1177,55 +1191,12 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                   width: isMobile ? screenWidth - 48 : (screenWidth - 80) / 3,
                 ),
                 _buildAdminActionCard(
-                  icon: Icons.assessment,
-                  title: 'Laporan Produk',
-                  description: 'Analisis penjualan produk',
-                  color: Colors.green,
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const ProductSalesReportPage(),
-                      ),
-                    );
-                  },
-                  width: isMobile ? screenWidth - 48 : (screenWidth - 80) / 3,
-                ),
-                _buildAdminActionCard(
-                  icon: Icons.analytics,
-                  title: 'Analytics Bulanan',
-                  description: 'Dashboard performa lengkap',
-                  color: Colors.purple,
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => MonthlyAnalyticsPage(),
-                      ),
-                    );
-                  },
-                  width: isMobile ? screenWidth - 48 : (screenWidth - 80) / 3,
-                ),
-                _buildAdminActionCard(
                   icon: Icons.inventory_2,
                   title: 'Storage & Inventory',
                   description: 'Kelola bahan baku & resep',
                   color: Colors.orange,
                   onTap: () {
                     Navigator.pushNamed(context, '/storage');
-                  },
-                  width: isMobile ? screenWidth - 48 : (screenWidth - 80) / 3,
-                ),
-                _buildAdminActionCard(
-                  icon: Icons.history,
-                  title: 'Riwayat Shift',
-                  description: 'Lihat rekap shift kasir',
-                  color: Colors.teal,
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const ShiftHistoryPage()),
-                    );
                   },
                   width: isMobile ? screenWidth - 48 : (screenWidth - 80) / 3,
                 ),
@@ -1270,6 +1241,58 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                       MaterialPageRoute(
                         builder: (context) => const ExpenseManagementPage(),
                       ),
+                    );
+                  },
+                  width: isMobile ? screenWidth - 48 : (screenWidth - 80) / 3,
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 32),
+
+            // ── Section: Laporan (Reports) ──
+            Text(
+              'Laporan',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: Colors.grey[800],
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Analisis performa & rekap data',
+              style: TextStyle(fontSize: 13, color: Colors.grey[500]),
+            ),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 16,
+              runSpacing: 16,
+              children: [
+                _buildAdminActionCard(
+                  icon: Icons.analytics,
+                  title: 'Analytics Bulanan',
+                  description: 'Dashboard performa lengkap',
+                  color: Colors.purple,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => MonthlyAnalyticsPage(),
+                      ),
+                    );
+                  },
+                  width: isMobile ? screenWidth - 48 : (screenWidth - 80) / 3,
+                ),
+                _buildAdminActionCard(
+                  icon: Icons.history,
+                  title: 'Riwayat Shift',
+                  description: 'Lihat rekap shift kasir',
+                  color: Colors.teal,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const ShiftHistoryPage()),
                     );
                   },
                   width: isMobile ? screenWidth - 48 : (screenWidth - 80) / 3,

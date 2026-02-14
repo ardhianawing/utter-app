@@ -7,8 +7,9 @@ import '../widgets/movement_list_tile.dart';
 
 class StockMovementPage extends ConsumerStatefulWidget {
   final String? ingredientId;
+  final bool embedded;
 
-  const StockMovementPage({super.key, this.ingredientId});
+  const StockMovementPage({super.key, this.ingredientId, this.embedded = false});
 
   @override
   ConsumerState<StockMovementPage> createState() => _StockMovementPageState();
@@ -25,29 +26,7 @@ class _StockMovementPageState extends ConsumerState<StockMovementPage> {
         ? ref.watch(ingredientMovementsProvider(widget.ingredientId!))
         : ref.watch(stockMovementsStreamProvider);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Stock Movements'),
-        backgroundColor: AppColors.primaryBlack,
-        foregroundColor: Colors.white,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.filter_list),
-            onPressed: () => _showFilterDialog(context),
-          ),
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () {
-              if (widget.ingredientId != null) {
-                ref.invalidate(ingredientMovementsProvider(widget.ingredientId!));
-              } else {
-                ref.invalidate(stockMovementsStreamProvider);
-              }
-            },
-          ),
-        ],
-      ),
-      body: Column(
+    final bodyContent = Column(
         children: [
           // Active Filters
           if (_selectedType != null || _startDate != null || _endDate != null)
@@ -176,6 +155,35 @@ class _StockMovementPageState extends ConsumerState<StockMovementPage> {
           ),
         ],
       ),
+    );
+
+    if (widget.embedded) {
+      return bodyContent;
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Stock Movements'),
+        backgroundColor: AppColors.primaryBlack,
+        foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.filter_list),
+            onPressed: () => _showFilterDialog(context),
+          ),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () {
+              if (widget.ingredientId != null) {
+                ref.invalidate(ingredientMovementsProvider(widget.ingredientId!));
+              } else {
+                ref.invalidate(stockMovementsStreamProvider);
+              }
+            },
+          ),
+        ],
+      ),
+      body: bodyContent,
     );
   }
 

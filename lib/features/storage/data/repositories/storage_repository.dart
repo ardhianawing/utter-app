@@ -177,7 +177,7 @@ class StorageRepository {
   // STOCK MOVEMENTS
   // ============================================================
 
-  /// Add stock (Stock In)
+  /// Add stock (Stock In) with Weighted Average Cost
   Future<void> addStock({
     required String ingredientId,
     required double quantity,
@@ -186,12 +186,38 @@ class StorageRepository {
     String? createdBy,
   }) async {
     try {
-      // Update stock using RPC
-      await _supabase.rpc('add_stock', params: {
-        'p_ingredient_id': ingredientId,
-        'p_quantity': quantity,
-        'p_unit_cost': unitCost,
-      });
+      // Fetch current ingredient for WAC calculation
+      final ingredient = await getIngredient(ingredientId);
+      if (ingredient == null) {
+        throw Exception('Ingredient not found');
+      }
+
+      // Calculate Weighted Average Cost if unitCost is provided
+      double? newCostPerUnit;
+      if (unitCost != null) {
+        final currentStock = ingredient.currentStock;
+        final oldCost = ingredient.costPerUnit;
+        final totalStock = currentStock + quantity;
+
+        if (totalStock > 0) {
+          newCostPerUnit = (currentStock * oldCost + quantity * unitCost) / totalStock;
+        } else {
+          newCostPerUnit = unitCost;
+        }
+      }
+
+      // Update stock and cost_per_unit directly
+      final newStock = ingredient.currentStock + quantity;
+      final updateData = <String, dynamic>{
+        'current_stock': newStock,
+      };
+      if (newCostPerUnit != null) {
+        updateData['cost_per_unit'] = newCostPerUnit;
+      }
+      await _supabase
+          .from('ingredients')
+          .update(updateData)
+          .eq('id', ingredientId);
 
       // Log movement
       await _supabase.from('stock_movements').insert({
